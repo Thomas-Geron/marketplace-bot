@@ -20,9 +20,10 @@ import tkinter as tk
 from tkinter import ttk
 
 from sinal import dar_sinal, limpar_sinal
+from paths import get_parametros_path, get_bot_command
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-CAMINHO_PARAMS = os.path.join(BASE, "parametros.json")
+CAMINHO_PARAMS = str(get_parametros_path())
 
 processo = None
 log_queue = queue.Queue()
@@ -75,7 +76,7 @@ def rodar():
 
     # -u = saida sem buffer, pra o log aparecer na hora
     processo = subprocess.Popen(
-        [sys.executable, "-u", "run.py"],
+        get_bot_command(),
         cwd=BASE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, bufsize=1,
     )

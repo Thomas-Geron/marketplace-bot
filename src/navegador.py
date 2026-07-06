@@ -1,9 +1,9 @@
 # bot/navegador.py
 
 # pasta de perfil dedicada ao bot — o login feito uma vez fica salvo aqui
-from pathlib import Path
+from paths import get_perfil_dir
 
-PASTA_PERFIL = Path(__file__).parent / "perfil_bot"
+PASTA_PERFIL = get_perfil_dir()
 
 def abrir_navegador(pw):
     contexto = pw.chromium.launch_persistent_context(

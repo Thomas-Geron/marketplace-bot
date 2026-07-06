@@ -13,6 +13,7 @@ from coleta import (carregar_todos, calcular_alvo, coletar_links, carregar_visit
 )
 from mensagem import enviar_mensagem
 from sinal import esperar_prosseguir
+from paths import get_parametros_path
 
 DEBUG = True
 
@@ -21,7 +22,9 @@ def pause(sec=2):
         time.sleep(sec)
 
 
-def carregar_parametros(caminho="parametros.json"):
+def carregar_parametros(caminho=None):
+    if caminho is None:
+        caminho = get_parametros_path()
     with open(caminho, encoding="utf-8") as f:
         dados = json.load(f)
 

@@ -7,8 +7,9 @@ Isso substitui o input()/ENTER do terminal por um botão na interface.
 import os
 import time
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-ARQ_SINAL = os.path.join(BASE, "prosseguir.signal")
+from paths import get_sinal_path
+
+ARQ_SINAL = str(get_sinal_path())
 
 
 def limpar_sinal():

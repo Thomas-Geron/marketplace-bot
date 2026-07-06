@@ -3,6 +3,7 @@ import json
 import os
 import config
 from datetime import datetime
+from paths import get_visitados_path
 
 
 def carregar_todos(pagina):
@@ -46,11 +47,11 @@ def coletar_links(pagina):
 def carregar_visitados():
     """Carrega os anúncios já processados."""
 
-    if not os.path.exists("visitados.json"):
+    if not os.path.exists(get_visitados_path()):
         return []
 
     try:
-        with open("visitados.json", "r", encoding="utf-8") as f:
+        with open(get_visitados_path(), "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return []
@@ -59,7 +60,7 @@ def carregar_visitados():
 def salvar_visitados(visitados):
     """Salva o histórico de anúncios."""
 
-    with open("visitados.json", "w", encoding="utf-8") as f:
+    with open(get_visitados_path(), "w", encoding="utf-8") as f:
         json.dump(
             visitados,
             f,
