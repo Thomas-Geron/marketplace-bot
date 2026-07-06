@@ -1,0 +1,12 @@
+# Dados do usuário / sessão (nunca commitar — contém login e histórico)
+perfil_bot/
+parametros.json
+visitados.json
+prosseguir.signal
+
+# Python
+__pycache__/
+*.pyc
+
+# Configuração local da máquina
+.claude/settings.local.json
