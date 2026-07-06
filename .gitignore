@@ -1,12 +1,23 @@
-# Dados do usuário / sessão (nunca commitar — contém login e histórico)
+# ── Dados do usuário / sessão (nunca commitar — contém login e histórico) ──
 perfil_bot/
 parametros.json
 visitados.json
 prosseguir.signal
+*.log
+.env
 
-# Python
+# ── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
 
-# Configuração local da máquina
+# ── Saídas de build (PyInstaller / Inno Setup) ─────────────────────────────
+# build/ guarda o spec e o .iss versionados; o resto é output de build
+dist/
+build/*
+!build/marketplace-bot.spec
+!build/installer.iss
+
+# ── Configuração local da máquina ──────────────────────────────────────────
 .claude/settings.local.json
