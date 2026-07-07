@@ -10,6 +10,7 @@ def enviar_mensagem(pagina, mensagem, dry_run):
     botao = pagina.locator(config.SEL_BTN_ENVIAR_MSG)
     botao.wait_for(state="visible")
     botao.click()
+    
 
     time.sleep(2)
 
@@ -29,7 +30,21 @@ def enviar_mensagem(pagina, mensagem, dry_run):
         print("[DRY RUN] Mensagem digitada. Não será enviada.")
         return
 
-    print("Enviando mensagem...")
-    campo.press("Enter")
+    print("Procurando botão azul de enviar...")
+
+    botoes = pagina.get_by_role("button", name="Enviar mensagem")
+
+    print("Quantidade de botões:", botoes.count())
+
+    # O último é o botão azul do modal
+    botao_enviar = botoes.last
+
+    botao_enviar.wait_for(state="visible")
+    time.sleep(1)
+
+    botao_enviar.click()
+
+    print("Mensagem enviada!")
+
 
     time.sleep(2)
