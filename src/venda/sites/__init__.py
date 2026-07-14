@@ -8,12 +8,22 @@ Nada mais no projeto precisa mudar: interface e anunciador descobrem os
 sites por este registro.
 """
 from venda.sites.site_demo import SiteDemo
+from venda.sites.site_facebook import SiteFacebook
+from venda.sites.site_icarros import SiteICarros
+from venda.sites.site_kavak import SiteKavak
+from venda.sites.site_mobiauto import SiteMobiauto
+from venda.sites.site_napista import SiteNaPista
 
 SITES = {
     adapter.id: adapter
     for adapter in [
         SiteDemo(),
-        # registre novos sites aqui, ex.: SiteWebmotors(),
+        SiteFacebook(),
+        SiteICarros(),
+        SiteMobiauto(),
+        SiteNaPista(),
+        SiteKavak(),
+        # registre novos sites aqui
     ]
 }
 

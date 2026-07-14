@@ -71,18 +71,23 @@ def main():
                     print(f"[pulado] {v['titulo']} — já anunciado neste site (anti-spam)")
                     continue
 
-                print(f"Anunciando: {v['titulo']}...")
-                site.abrir_novo_anuncio(aba)
-                site.preencher(aba, v)
+                # erro em um anúncio não derruba o resto da fila
+                try:
+                    print(f"Anunciando: {v['titulo']}...")
+                    site.abrir_novo_anuncio(aba)
+                    site.preencher(aba, v)
 
-                if dry_run:
-                    print("[DRY RUN] Formulário preenchido. Não será publicado.")
-                    continue
+                    if dry_run:
+                        print("[DRY RUN] Formulário preenchido. Não será publicado.")
+                        continue
 
-                site.publicar(aba)
-                anunciados.registrar(v["id"], site_id, v["titulo"])
-                feitos += 1
-                print(f"Publicado: {v['titulo']} em {site.nome}")
+                    site.publicar(aba)
+                    anunciados.registrar(v["id"], site_id, v["titulo"])
+                    feitos += 1
+                    print(f"Publicado: {v['titulo']} em {site.nome}")
+                except Exception as exc:
+                    print(f"[erro] {v['titulo']} em {site.nome}: {exc}")
+                    print("       Este anúncio NÃO foi registrado — pode tentar de novo depois.")
 
         print(
             f"\nConcluído: {feitos} publicado(s), {pulados} pulado(s) "
