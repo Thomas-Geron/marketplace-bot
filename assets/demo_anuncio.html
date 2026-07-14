@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Site de Demonstração — Novo Anúncio</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f0f2f5; margin: 0; }
+  header { background: #1565c0; color: #fff; padding: 14px 24px; font-size: 18px; }
+  main { max-width: 520px; margin: 32px auto; background: #fff; padding: 24px;
+         border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  label { display: block; margin: 14px 0 4px; font-weight: 600; font-size: 14px; }
+  input, textarea { width: 100%; padding: 8px; border: 1px solid #ccc;
+                    border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+  button { margin-top: 20px; background: #1565c0; color: #fff; border: 0;
+           padding: 10px 22px; border-radius: 4px; font-size: 15px; cursor: pointer; }
+  #confirmacao { display: none; margin-top: 18px; padding: 12px; border-radius: 4px;
+                 background: #e8f5e9; color: #2e7d32; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>🚗 Site de Demonstração — este formulário é local e não publica nada</header>
+<main>
+  <h2>Criar novo anúncio</h2>
+  <form onsubmit="return false">
+    <label for="titulo">Título do anúncio</label>
+    <input id="titulo" name="titulo" placeholder="Ex.: Fiat Mobi 2022">
+
+    <label for="preco">Preço (R$)</label>
+    <input id="preco" name="preco" placeholder="Ex.: 52900">
+
+    <label for="km">Quilometragem</label>
+    <input id="km" name="km" placeholder="Ex.: 34000">
+
+    <label for="descricao">Descrição</label>
+    <textarea id="descricao" name="descricao" rows="4"
+              placeholder="Detalhes do veículo"></textarea>
+
+    <button id="publicar" onclick="publicar()">Publicar anúncio</button>
+    <div id="confirmacao">Anúncio publicado com sucesso! (simulação)</div>
+  </form>
+</main>
+<script>
+  function publicar() {
+    document.getElementById("confirmacao").style.display = "block";
+  }
+</script>
+</body>
+</html>
