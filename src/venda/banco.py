@@ -20,15 +20,18 @@ from venda import config_venda
 TIMEOUT = 15  # segundos
 
 _VEICULOS_DEMO = [
-    {"id": "demo-1", "marca": "Fiat", "modelo": "Mobi Like", "ano": 2022,
-     "preco": 52900, "km": 34000,
-     "descricao": "Único dono, revisões em dia. (veículo de exemplo)", "fotos": []},
-    {"id": "demo-2", "marca": "Chevrolet", "modelo": "Onix LT", "ano": 2021,
-     "preco": 68500, "km": 51000,
-     "descricao": "Completo, pneus novos. (veículo de exemplo)", "fotos": []},
-    {"id": "demo-3", "marca": "Volkswagen", "modelo": "Gol 1.0", "ano": 2019,
-     "preco": 47900, "km": 78000,
-     "descricao": "Ótimo estado, IPVA pago. (veículo de exemplo)", "fotos": []},
+    {"id": "demo-1", "titulo": "Fiat Mobi Like 2022", "marca": "Fiat",
+     "modelo": "Mobi Like", "ano": 2022, "preco": 52900, "km": 34000,
+     "descricao": "Único dono, revisões em dia. (veículo de exemplo)",
+     "fotos": [], "placa": None, "status": None},
+    {"id": "demo-2", "titulo": "Chevrolet Onix LT 2021", "marca": "Chevrolet",
+     "modelo": "Onix LT", "ano": 2021, "preco": 68500, "km": 51000,
+     "descricao": "Completo, pneus novos. (veículo de exemplo)",
+     "fotos": [], "placa": None, "status": None},
+    {"id": "demo-3", "titulo": "Volkswagen Gol 1.0 2019", "marca": "Volkswagen",
+     "modelo": "Gol 1.0", "ano": 2019, "preco": 47900, "km": 78000,
+     "descricao": "Ótimo estado, IPVA pago. (veículo de exemplo)",
+     "fotos": [], "placa": None, "status": None},
 ]
 
 
@@ -116,22 +119,19 @@ class BancoVeiculos:
 
     # ------------------------------------------------------------- consulta
     def listar_veiculos(self):
-        """Retorna os veículos da conta logada, já normalizados.
-
-        Cada veículo é um dict com as chaves padronizadas de
-        config_venda.CAMPOS (id, marca, modelo, ano, preco, km,
-        descricao, fotos) + 'titulo' composto.
-        """
+        """Retorna os veículos da conta logada, já padronizados
+        (id, titulo, marca, modelo, ano, preco, km, descricao, fotos,
+        placa, status) via config_venda.normalizar()."""
         if not self.logado:
             raise RuntimeError("faça login antes de listar veículos")
         if config_venda.modo_demo():
-            brutos = [dict(v) for v in _VEICULOS_DEMO]
-            return [self._normalizar(v, identidade=True) for v in brutos]
+            return [dict(v) for v in _VEICULOS_DEMO]
 
-        colunas = ",".join(sorted(set(config_venda.CAMPOS.values())))
+        params = {"select": config_venda.SELECT_VEICULOS}
+        params.update(config_venda.FILTRO_VEICULOS)
         resp = requests.get(
             f"{config_venda.SUPABASE_URL}/rest/v1/{config_venda.TABELA_VEICULOS}",
-            params={"select": colunas},
+            params=params,
             headers={
                 "apikey": config_venda.SUPABASE_ANON_KEY,
                 "Authorization": f"Bearer {self._access_token}",
@@ -139,15 +139,4 @@ class BancoVeiculos:
             timeout=TIMEOUT,
         )
         resp.raise_for_status()
-        return [self._normalizar(linha) for linha in resp.json()]
-
-    @staticmethod
-    def _normalizar(linha, identidade=False):
-        v = {}
-        for padrao, coluna in config_venda.CAMPOS.items():
-            v[padrao] = linha.get(padrao if identidade else coluna)
-        if not v.get("fotos"):
-            v["fotos"] = []
-        v["id"] = str(v["id"])
-        v["titulo"] = f"{v.get('marca') or ''} {v.get('modelo') or ''} {v.get('ano') or ''}".strip()
-        return v
+        return [config_venda.normalizar(linha) for linha in resp.json()]

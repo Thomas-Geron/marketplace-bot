@@ -76,6 +76,8 @@ def iniciar():
         for v in veiculos:
             preco = f"R$ {v['preco']:,}".replace(",", ".") if v.get("preco") else "sem preço"
             linha = f"{v['titulo']}  —  {preco}"
+            if v.get("status"):
+                linha += f"  ({v['status']})"
             ja = anunciados.sites_do_veiculo(v["id"], registros)
             if ja:
                 linha += f"   [já em: {', '.join(ja)}]"

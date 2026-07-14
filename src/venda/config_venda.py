@@ -1,41 +1,81 @@
 # src/venda/config_venda.py
 """
-Configuração do módulo de Venda/Anúncio.
+Configuração do módulo de Venda/Anúncio — ÚNICO arquivo que conhece o
+schema real do banco. O resto do código só usa o veículo padronizado
+devolvido por normalizar().
 
-PREENCHA os dados do seu projeto Supabase abaixo. Enquanto SUPABASE_URL
-estiver vazio, o módulo roda em MODO DEMONSTRAÇÃO: qualquer login é aceito
-e aparecem veículos de exemplo — útil para testar o fluxo de ponta a ponta.
+Schema do projeto (Supabase):
+  veiculos: id, ano, km, cor, placa, combustivel, cambio, portas, versao,
+            valor_venda, valor_compra, opcionais, status,
+            marca_id → marcas(nome), modelo_id → modelos(nome)
+  fotos:    veiculo_id → veiculos, url
 
-IMPORTANTE (segurança): a ANON KEY é pública por design no Supabase, mas a
-tabela de veículos PRECISA ter RLS (Row Level Security) habilitada com
-política por usuário — é isso que garante que cada conta só enxerga os
-próprios veículos.
+Segurança: a publishable key é pública por design; a proteção vem da RLS
+(acesso anônimo à tabela retorna vazio — verificado). NUNCA colocar aqui
+a secret/service_role key.
 """
 
-# Ex.: "https://abcdefghij.supabase.co"
-SUPABASE_URL = ""
+SUPABASE_URL = "https://lileldntmxbgswmebxfo.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_GSWFn7H5uNxgFkHnRMLy8g_cS7fMt_L"
 
-# Ex.: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-SUPABASE_ANON_KEY = ""
-
-# Nome da tabela de veículos no Supabase
 TABELA_VEICULOS = "veiculos"
 
-# Mapeamento: campo padronizado do bot → nome da coluna na SUA tabela.
-# O resto do código só conhece os nomes da esquerda; se a sua tabela usar
-# outros nomes de coluna, ajuste apenas o lado direito.
-CAMPOS = {
-    "id":        "id",
-    "marca":     "marca",
-    "modelo":    "modelo",
-    "ano":       "ano",
-    "preco":     "preco",
-    "km":        "km",
-    "descricao": "descricao",
-    "fotos":     "fotos",       # coluna com lista/array de URLs (opcional)
-}
+# Consulta com os joins de marca, modelo e fotos (sintaxe PostgREST)
+SELECT_VEICULOS = (
+    "id,ano,km,cor,placa,combustivel,cambio,portas,versao,"
+    "valor_venda,opcionais,status,marcas(nome),modelos(nome),fotos(url)"
+)
+
+# Filtros extras da consulta (sintaxe PostgREST), ex. para anunciar apenas
+# veículos disponíveis: {"status": "eq.disponivel"}
+FILTRO_VEICULOS = {}
 
 
 def modo_demo() -> bool:
     """True enquanto o Supabase não estiver configurado."""
     return not (SUPABASE_URL and SUPABASE_ANON_KEY)
+
+
+def normalizar(linha: dict) -> dict:
+    """Converte uma linha do banco no veículo padronizado do bot:
+    id, titulo, marca, modelo, ano, preco, km, descricao, fotos,
+    placa, status."""
+    marca = (linha.get("marcas") or {}).get("nome") or ""
+    modelo = (linha.get("modelos") or {}).get("nome") or ""
+    ano = linha.get("ano")
+
+    fotos = [f["url"] for f in (linha.get("fotos") or []) if f.get("url")]
+
+    partes = []
+    if linha.get("versao"):
+        partes.append(str(linha["versao"]))
+    if linha.get("cor"):
+        partes.append(f"Cor {linha['cor']}")
+    if linha.get("cambio"):
+        partes.append(f"Câmbio {linha['cambio']}")
+    if linha.get("combustivel"):
+        partes.append(str(linha["combustivel"]))
+    if linha.get("portas"):
+        partes.append(f"{linha['portas']} portas")
+    if linha.get("km") is not None:
+        partes.append(f"{linha['km']} km")
+    opcionais = linha.get("opcionais")
+    if opcionais:
+        if isinstance(opcionais, (list, tuple)):
+            partes.append("Opcionais: " + ", ".join(str(o) for o in opcionais))
+        else:
+            partes.append(f"Opcionais: {opcionais}")
+
+    return {
+        "id": str(linha.get("id")),
+        "marca": marca,
+        "modelo": modelo,
+        "ano": ano,
+        "preco": linha.get("valor_venda"),
+        "km": linha.get("km"),
+        "descricao": " · ".join(partes),
+        "fotos": fotos,
+        "placa": linha.get("placa"),
+        "status": linha.get("status"),
+        "titulo": " ".join(str(p) for p in (marca, modelo, ano) if p),
+    }
