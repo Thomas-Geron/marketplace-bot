@@ -65,16 +65,35 @@ def get_update_log_path() -> Path:
     return get_data_dir() / "update.log"
 
 
-def get_bot_command() -> list:
+def get_parametros_venda_path() -> Path:
+    return get_data_dir() / "parametros_venda.json"
+
+
+def get_anunciados_path() -> Path:
+    """Registro de (veículo × site) já anunciados — trava anti-spam."""
+    return get_data_dir() / "anunciados.json"
+
+
+def get_sessao_venda_path() -> Path:
+    """Sessão salva do Supabase (refresh token) do módulo de venda."""
+    return get_data_dir() / "sessao_venda.json"
+
+
+def get_bot_command(flag: str = "--run-bot") -> list:
     """Comando que a interface usa para iniciar o processo do bot.
 
-    Congelado: o próprio executável com a flag --run-bot.
-    Em desenvolvimento: o interpretador atual rodando main.py --run-bot.
+    Congelado: o próprio executável com a flag pedida.
+    Em desenvolvimento: o interpretador atual rodando main.py com a flag.
     """
     if IS_FROZEN:
-        return [sys.executable, "--run-bot"]
+        return [sys.executable, flag]
     main_py = Path(__file__).resolve().parent / "main.py"
-    return [sys.executable, "-u", str(main_py), "--run-bot"]
+    return [sys.executable, "-u", str(main_py), flag]
+
+
+def get_venda_command() -> list:
+    """Comando que a interface usa para iniciar o bot de anúncios."""
+    return get_bot_command("--run-venda")
 
 
 def _dirs_legados() -> list:
