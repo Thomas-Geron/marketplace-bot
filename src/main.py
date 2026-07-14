@@ -3,8 +3,9 @@
 Entrypoint do MarketplaceBot.
 
 Modos de execução:
-  MarketplaceBot.exe                    → checa update e abre a interface
-  MarketplaceBot.exe --run-bot          → roda o bot (subprocesso da interface)
+  MarketplaceBot.exe                    → checa update e abre o seletor Compra/Venda
+  MarketplaceBot.exe --run-bot          → roda o bot de compra (subprocesso da interface)
+  MarketplaceBot.exe --run-venda        → roda o bot de anúncios (subprocesso da interface)
   MarketplaceBot.exe --install-browser  → garante o navegador (usado pelo instalador)
 
 Em desenvolvimento: python src/main.py [flags]
@@ -129,8 +130,17 @@ def main() -> None:
         run.main()
         return
 
+    if "--run-venda" in sys.argv:
+        _preparar_stdout_sem_buffer()
+        from venda import anunciador
+
+        anunciador.main()
+        return
+
     checar_atualizacao()
-    import interface_bot  # noqa: F401 — o módulo executa a GUI ao ser importado
+    import interface_principal
+
+    interface_principal.iniciar()
 
 
 if __name__ == "__main__":

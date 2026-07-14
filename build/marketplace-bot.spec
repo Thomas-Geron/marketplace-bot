@@ -15,7 +15,8 @@ from PyInstaller.utils.hooks import collect_all
 
 ROOT = os.path.dirname(SPECPATH)  # SPECPATH = pasta build/
 SRC = os.path.join(ROOT, "src")
-ICON = os.path.join(ROOT, "assets", "icon.ico")
+ASSETS = os.path.join(ROOT, "assets")
+ICON = os.path.join(ASSETS, "icon.ico")
 
 # O Playwright precisa do driver Node (playwright/driver) dentro do bundle
 pw_datas, pw_binaries, pw_hidden = collect_all("playwright")
@@ -24,7 +25,7 @@ a = Analysis(
     [os.path.join(SRC, "main.py")],
     pathex=[SRC],
     binaries=pw_binaries,
-    datas=pw_datas + [(ICON, "assets")],
+    datas=pw_datas + [(ASSETS, "assets")],
     hiddenimports=pw_hidden,
     hookspath=[],
     hooksconfig={},

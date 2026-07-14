@@ -14,8 +14,11 @@ Tudo em `%LOCALAPPDATA%\MarketplaceBot\` — **nunca** na pasta de instalação:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `parametros.json` | última configuração preenchida na interface |
-| `visitados.json` | histórico de anúncios já processados |
+| `parametros.json` | última configuração da tela de Compra |
+| `visitados.json` | histórico de anúncios já processados (Compra) |
+| `parametros_venda.json` | última configuração da tela de Venda/Anúncio |
+| `anunciados.json` | trava anti-spam: quais veículos já foram anunciados em quais sites |
+| `sessao_venda.json` | sessão salva da conta (Supabase) do módulo de venda |
 | `perfil_bot/` | perfil do Chrome com o login salvo |
 | `update.log` | log do sistema de atualização |
 
@@ -39,9 +42,29 @@ python src/main.py
 
 | Comando | O que faz |
 |---|---|
-| `python src/main.py` | checa update e abre a interface |
-| `python src/main.py --run-bot` | roda só o bot (é o que a interface dispara) |
+| `python src/main.py` | checa update e abre o seletor Compra / Venda |
+| `python src/main.py --run-bot` | roda só o bot de compra (é o que a interface dispara) |
+| `python src/main.py --run-venda` | roda só o bot de anúncios |
 | `python src/main.py --install-browser` | instala o Chrome se não existir (usado pelo instalador) |
+
+## Modo Venda/Anúncio
+
+Anuncia veículos do **seu banco Supabase** nos sites escolhidos. A interface
+faz login na conta do usuário (cada conta vê só os próprios veículos — exige
+**RLS habilitada** na tabela), o usuário marca veículos e sites, o bot abre
+uma aba por site para **login manual** e, após o "Prosseguir", preenche os
+anúncios. Anti-spam: cada veículo é anunciado no máximo **uma vez por site**
+(registro em `anunciados.json`), mesmo entre execuções.
+
+Configuração em [src/venda/config_venda.py](src/venda/config_venda.py):
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, nome da tabela e mapeamento de colunas.
+Enquanto não configurado, roda em **modo demonstração** (qualquer login,
+veículos de exemplo e um site fake local — `assets/demo_anuncio.html`).
+
+Para adicionar um site real: criar `src/venda/sites/<site>.py` herdando
+`SiteAdapter` ([base.py](src/venda/sites/base.py)) e registrá-lo em
+[sites/\_\_init\_\_.py](src/venda/sites/__init__.py). Interface e anunciador
+não mudam — dependem apenas do banco e do contrato genérico.
 
 ## Build local
 
