@@ -23,15 +23,15 @@ _VEICULOS_DEMO = [
     {"id": "demo-1", "titulo": "Fiat Mobi Like 2022", "marca": "Fiat",
      "modelo": "Mobi Like", "ano": 2022, "preco": 52900, "km": 34000,
      "descricao": "Único dono, revisões em dia. (veículo de exemplo)",
-     "fotos": [], "placa": None, "status": None},
+     "fotos": [], "placa": None, "status": "disponível"},
     {"id": "demo-2", "titulo": "Chevrolet Onix LT 2021", "marca": "Chevrolet",
      "modelo": "Onix LT", "ano": 2021, "preco": 68500, "km": 51000,
      "descricao": "Completo, pneus novos. (veículo de exemplo)",
-     "fotos": [], "placa": None, "status": None},
+     "fotos": [], "placa": None, "status": "disponível"},
     {"id": "demo-3", "titulo": "Volkswagen Gol 1.0 2019", "marca": "Volkswagen",
      "modelo": "Gol 1.0", "ano": 2019, "preco": 47900, "km": 78000,
      "descricao": "Ótimo estado, IPVA pago. (veículo de exemplo)",
-     "fotos": [], "placa": None, "status": None},
+     "fotos": [], "placa": None, "status": "disponível"},
 ]
 
 
@@ -125,7 +125,8 @@ class BancoVeiculos:
         if not self.logado:
             raise RuntimeError("faça login antes de listar veículos")
         if config_venda.modo_demo():
-            return [dict(v) for v in _VEICULOS_DEMO]
+            return [dict(v) for v in _VEICULOS_DEMO
+                    if config_venda.anunciavel(v)]
 
         params = {"select": config_venda.SELECT_VEICULOS}
         params.update(config_venda.FILTRO_VEICULOS)
@@ -139,4 +140,6 @@ class BancoVeiculos:
             timeout=TIMEOUT,
         )
         resp.raise_for_status()
-        return [config_venda.normalizar(linha) for linha in resp.json()]
+        veiculos = [config_venda.normalizar(linha) for linha in resp.json()]
+        # a RLS já limitou aos veículos DESTA conta; aqui fica só o disponível
+        return [v for v in veiculos if config_venda.anunciavel(v)]

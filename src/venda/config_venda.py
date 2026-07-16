@@ -14,6 +14,10 @@ Schema do projeto (Supabase):
 O preço anunciado nos sites vem de preco_anunciado; se estiver vazio,
 usa valor_venda como reserva.
 
+Visibilidade: a RLS garante que cada conta só recebe os próprios
+veículos (auth.uid() = user_id); o bot ainda filtra, destes, apenas os
+com status "disponível" (comparação sem acento/caixa — ver anunciavel).
+
 Segurança: a publishable key é pública por design; a proteção vem da RLS
 (acesso anônimo à tabela retorna vazio — verificado). NUNCA colocar aqui
 a secret/service_role key.
@@ -39,6 +43,24 @@ FILTRO_VEICULOS = {}
 def modo_demo() -> bool:
     """True enquanto o Supabase não estiver configurado."""
     return not (SUPABASE_URL and SUPABASE_ANON_KEY)
+
+
+import unicodedata
+
+# só veículos neste status entram na lista de anúncio
+STATUS_ANUNCIAVEL = "disponivel"
+
+
+def _normaliza_texto(texto):
+    """minúsculas e sem acentos: 'Disponível' → 'disponivel'."""
+    texto = unicodedata.normalize("NFD", str(texto or ""))
+    return "".join(c for c in texto if unicodedata.category(c) != "Mn").strip().lower()
+
+
+def anunciavel(veiculo: dict) -> bool:
+    """True apenas para veículos com status 'disponível' (tolerante a
+    acento/caixa). Sem status definido → não anuncia."""
+    return _normaliza_texto(veiculo.get("status")) == STATUS_ANUNCIAVEL
 
 
 def _para_numero(valor):
