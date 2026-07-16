@@ -6,13 +6,13 @@ devolvido por normalizar().
 
 Schema do projeto (Supabase):
   veiculos: id, ano, km, cor, placa, combustivel, cambio, portas, versao,
-            valor_anunciado (preço público dos anúncios), valor_venda,
-            valor_compra, opcionais, status, user_id (dono, RLS),
+            preco_anunciado (campo "PREÇO ANUNCIADO (R$)" do sistema),
+            valor_venda, valor_compra, opcionais, status, user_id (dono),
             marca_id → marcas(nome), modelo_id → modelos(nome)
   fotos:    veiculo_id → veiculos, url
 
-O preço anunciado nos sites é valor_anunciado; se estiver vazio, usa
-valor_venda como reserva.
+O preço anunciado nos sites vem de preco_anunciado; se estiver vazio,
+usa valor_venda como reserva.
 
 Segurança: a publishable key é pública por design; a proteção vem da RLS
 (acesso anônimo à tabela retorna vazio — verificado). NUNCA colocar aqui
@@ -27,7 +27,7 @@ TABELA_VEICULOS = "veiculos"
 # Consulta com os joins de marca, modelo e fotos (sintaxe PostgREST)
 SELECT_VEICULOS = (
     "id,ano,km,cor,placa,combustivel,cambio,portas,versao,"
-    "valor_anunciado,valor_venda,opcionais,status,"
+    "preco_anunciado,valor_venda,opcionais,status,"
     "marcas(nome),modelos(nome),fotos(url)"
 )
 
@@ -39,6 +39,18 @@ FILTRO_VEICULOS = {}
 def modo_demo() -> bool:
     """True enquanto o Supabase não estiver configurado."""
     return not (SUPABASE_URL and SUPABASE_ANON_KEY)
+
+
+def _para_numero(valor):
+    """Aceita número ou texto em formato brasileiro ('80.000,00')."""
+    if valor is None or isinstance(valor, (int, float)):
+        return valor
+    texto = str(valor).strip().replace("R$", "").replace(".", "").replace(",", ".")
+    try:
+        numero = float(texto)
+        return int(numero) if numero == int(numero) else numero
+    except ValueError:
+        return None
 
 
 def normalizar(linha: dict) -> dict:
@@ -76,9 +88,9 @@ def normalizar(linha: dict) -> dict:
         "marca": marca,
         "modelo": modelo,
         "ano": ano,
-        "preco": (linha.get("valor_anunciado")
-                  if linha.get("valor_anunciado") is not None
-                  else linha.get("valor_venda")),
+        "preco": (_para_numero(linha.get("preco_anunciado"))
+                  if linha.get("preco_anunciado") is not None
+                  else _para_numero(linha.get("valor_venda"))),
         "km": linha.get("km"),
         "descricao": " · ".join(partes),
         "fotos": fotos,
