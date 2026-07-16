@@ -6,9 +6,13 @@ devolvido por normalizar().
 
 Schema do projeto (Supabase):
   veiculos: id, ano, km, cor, placa, combustivel, cambio, portas, versao,
-            valor_venda, valor_compra, opcionais, status,
+            valor_anunciado (preço público dos anúncios), valor_venda,
+            valor_compra, opcionais, status, user_id (dono, RLS),
             marca_id → marcas(nome), modelo_id → modelos(nome)
   fotos:    veiculo_id → veiculos, url
+
+O preço anunciado nos sites é valor_anunciado; se estiver vazio, usa
+valor_venda como reserva.
 
 Segurança: a publishable key é pública por design; a proteção vem da RLS
 (acesso anônimo à tabela retorna vazio — verificado). NUNCA colocar aqui
@@ -23,7 +27,8 @@ TABELA_VEICULOS = "veiculos"
 # Consulta com os joins de marca, modelo e fotos (sintaxe PostgREST)
 SELECT_VEICULOS = (
     "id,ano,km,cor,placa,combustivel,cambio,portas,versao,"
-    "valor_venda,opcionais,status,marcas(nome),modelos(nome),fotos(url)"
+    "valor_anunciado,valor_venda,opcionais,status,"
+    "marcas(nome),modelos(nome),fotos(url)"
 )
 
 # Filtros extras da consulta (sintaxe PostgREST), ex. para anunciar apenas
@@ -71,7 +76,9 @@ def normalizar(linha: dict) -> dict:
         "marca": marca,
         "modelo": modelo,
         "ano": ano,
-        "preco": linha.get("valor_venda"),
+        "preco": (linha.get("valor_anunciado")
+                  if linha.get("valor_anunciado") is not None
+                  else linha.get("valor_venda")),
         "km": linha.get("km"),
         "descricao": " · ".join(partes),
         "fotos": fotos,
