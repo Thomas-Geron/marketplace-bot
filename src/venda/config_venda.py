@@ -23,6 +23,8 @@ Segurança: a publishable key é pública por design; a proteção vem da RLS
 a secret/service_role key.
 """
 
+import json
+
 SUPABASE_URL = "https://lileldntmxbgswmebxfo.supabase.co"
 SUPABASE_ANON_KEY = "sb_publishable_GSWFn7H5uNxgFkHnRMLy8g_cS7fMt_L"
 
@@ -78,12 +80,23 @@ def _para_numero(valor):
 def normalizar(linha: dict) -> dict:
     """Converte uma linha do banco no veículo padronizado do bot:
     id, titulo, marca, modelo, ano, preco, km, descricao, fotos,
-    placa, status."""
+    placa, status + campos brutos para formulários estruturados
+    (versao, cor, cambio, combustivel, portas, opcionais)."""
     marca = (linha.get("marcas") or {}).get("nome") or ""
     modelo = (linha.get("modelos") or {}).get("nome") or ""
     ano = linha.get("ano")
 
     fotos = [f["url"] for f in (linha.get("fotos") or []) if f.get("url")]
+
+    opcionais = linha.get("opcionais")
+    if isinstance(opcionais, str) and opcionais.strip().startswith("["):
+        # o sistema do usuário grava os opcionais como texto JSON
+        try:
+            opcionais = json.loads(opcionais)
+        except ValueError:
+            pass
+    if isinstance(opcionais, (list, tuple)):
+        opcionais = ", ".join(str(o) for o in opcionais)
 
     partes = []
     if linha.get("versao"):
@@ -98,12 +111,8 @@ def normalizar(linha: dict) -> dict:
         partes.append(f"{linha['portas']} portas")
     if linha.get("km") is not None:
         partes.append(f"{linha['km']} km")
-    opcionais = linha.get("opcionais")
     if opcionais:
-        if isinstance(opcionais, (list, tuple)):
-            partes.append("Opcionais: " + ", ".join(str(o) for o in opcionais))
-        else:
-            partes.append(f"Opcionais: {opcionais}")
+        partes.append(f"Opcionais: {opcionais}")
 
     return {
         "id": str(linha.get("id")),
@@ -119,4 +128,11 @@ def normalizar(linha: dict) -> dict:
         "placa": linha.get("placa"),
         "status": linha.get("status"),
         "titulo": " ".join(str(p) for p in (marca, modelo, ano) if p),
+        # brutos para sites com formulário estruturado (ex.: Facebook)
+        "versao": linha.get("versao"),
+        "cor": linha.get("cor"),
+        "cambio": linha.get("cambio"),
+        "combustivel": linha.get("combustivel"),
+        "portas": linha.get("portas"),
+        "opcionais": opcionais or None,
     }

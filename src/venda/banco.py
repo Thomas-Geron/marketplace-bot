@@ -21,15 +21,22 @@ TIMEOUT = 15  # segundos
 
 _VEICULOS_DEMO = [
     {"id": "demo-1", "titulo": "Fiat Mobi Like 2022", "marca": "Fiat",
-     "modelo": "Mobi Like", "ano": 2022, "preco": 52900, "km": 34000,
+     "modelo": "Mobi", "versao": "Like 1.0", "ano": 2022, "preco": 52900,
+     "km": 34000, "cor": "Prata", "cambio": "Manual", "combustivel": "Flex",
+     "portas": 4, "opcionais": "Ar-condicionado, direção elétrica",
      "descricao": "Único dono, revisões em dia. (veículo de exemplo)",
      "fotos": [], "placa": None, "status": "disponível"},
     {"id": "demo-2", "titulo": "Chevrolet Onix LT 2021", "marca": "Chevrolet",
-     "modelo": "Onix LT", "ano": 2021, "preco": 68500, "km": 51000,
+     "modelo": "Onix", "versao": "LT 1.0", "ano": 2021, "preco": 68500,
+     "km": 51000, "cor": "Branco", "cambio": "Automático",
+     "combustivel": "Flex", "portas": 4,
+     "opcionais": "Central multimídia, câmera de ré",
      "descricao": "Completo, pneus novos. (veículo de exemplo)",
      "fotos": [], "placa": None, "status": "disponível"},
     {"id": "demo-3", "titulo": "Volkswagen Gol 1.0 2019", "marca": "Volkswagen",
-     "modelo": "Gol 1.0", "ano": 2019, "preco": 47900, "km": 78000,
+     "modelo": "Gol", "versao": "1.0 MPI", "ano": 2019, "preco": 47900,
+     "km": 78000, "cor": "Cinza", "cambio": "Manual", "combustivel": "Flex",
+     "portas": 4, "opcionais": "Vidros e travas elétricas",
      "descricao": "Ótimo estado, IPVA pago. (veículo de exemplo)",
      "fotos": [], "placa": None, "status": "disponível"},
 ]
@@ -121,7 +128,8 @@ class BancoVeiculos:
     def listar_veiculos(self):
         """Retorna os veículos da conta logada, já padronizados
         (id, titulo, marca, modelo, ano, preco, km, descricao, fotos,
-        placa, status) via config_venda.normalizar()."""
+        placa, status, versao, cor, cambio, combustivel, portas,
+        opcionais) via config_venda.normalizar()."""
         if not self.logado:
             raise RuntimeError("faça login antes de listar veículos")
         if config_venda.modo_demo():

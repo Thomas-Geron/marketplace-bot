@@ -4,11 +4,14 @@ NaPista — anúncios via conta de vendedor/loja (https://napista.com.br/loja).
 
 Exige conta de vendedor (modelo de preço fixo, sem custo por anúncio,
 segundo o site). O bot abre a área da loja; faça login e ele tenta criar
-o anúncio. Seletores best-effort — calibrar na primeira execução real.
+o anúncio. Seletores best-effort — calibrar com as capturas de
+%LOCALAPPDATA%/MarketplaceBot/debug/napista.
 """
 import time
 
-from venda.sites.base import SiteAdapter, preencher_campo, clicar, enviar_fotos
+from venda.sites.base import (
+    SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
+    esperar_formulario)
 
 
 class SiteNaPista(SiteAdapter):
@@ -19,15 +22,16 @@ class SiteNaPista(SiteAdapter):
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://napista.com.br/loja")
         pagina.wait_for_load_state("domcontentloaded")
-        pagina.wait_for_timeout(2000)
+        esperar_formulario(pagina)
         clicar(pagina, [
             'a:has-text("Anunciar")', 'button:has-text("Anunciar")',
             'a:has-text("Novo anúncio")', 'button:has-text("Novo anúncio")',
             'a:has-text("Adicionar veículo")',
         ], "abrir novo anúncio")
-        pagina.wait_for_timeout(2000)
+        esperar_formulario(pagina)
 
     def preencher(self, pagina, veiculo):
+        dump_diagnostico(pagina, self.id, "inicio")
         preencher_campo(pagina, [
             'input[name*="placa" i]', 'input[placeholder*="placa" i]',
         ], veiculo.get("placa"), "Placa")
@@ -48,6 +52,7 @@ class SiteNaPista(SiteAdapter):
         ], veiculo.get("descricao"), "Descrição")
 
         enviar_fotos(pagina, veiculo, ['input[type="file"]'])
+        dump_diagnostico(pagina, self.id, "fim")
         time.sleep(2)
 
     def publicar(self, pagina):

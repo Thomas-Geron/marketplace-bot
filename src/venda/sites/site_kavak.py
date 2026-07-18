@@ -5,11 +5,14 @@ de compra pelo seu veículo. Este adaptador preenche o funil de cotação
 (https://www.kavak.com/br/vender-carro), que começa por ano/marca/modelo.
 
 O 'anúncio' aqui significa: cotação enviada. A oferta chega pela própria
-Kavak (site/e-mail). Seletores best-effort — calibrar na primeira execução.
+Kavak (site/e-mail). Seletores best-effort — calibrar com as capturas de
+%LOCALAPPDATA%/MarketplaceBot/debug/kavak.
 """
 import time
 
-from venda.sites.base import SiteAdapter, preencher_campo, clicar
+from venda.sites.base import (
+    SiteAdapter, preencher_campo, clicar, dump_diagnostico,
+    esperar_formulario)
 
 
 class SiteKavak(SiteAdapter):
@@ -20,7 +23,7 @@ class SiteKavak(SiteAdapter):
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.kavak.com/br/vender-carro")
         pagina.wait_for_load_state("domcontentloaded")
-        pagina.wait_for_timeout(2000)
+        esperar_formulario(pagina)
 
     def _escolher_opcao(self, pagina, valor, nome_passo):
         """Funil da Kavak: cada passo é uma lista/grade de opções clicáveis."""
@@ -37,6 +40,7 @@ class SiteKavak(SiteAdapter):
         return ok
 
     def preencher(self, pagina, veiculo):
+        dump_diagnostico(pagina, self.id, "inicio")
         # a cotação pode começar pela placa (atalho) ou pelo funil ano→marca→modelo
         if veiculo.get("placa") and preencher_campo(pagina, [
             'input[name*="placa" i]', 'input[placeholder*="placa" i]',
@@ -55,6 +59,7 @@ class SiteKavak(SiteAdapter):
             'input[name*="km" i]', 'input[placeholder*="quilometragem" i]',
             'input[name*="quilometragem" i]',
         ], veiculo.get("km"), "Quilometragem")
+        dump_diagnostico(pagina, self.id, "fim")
         time.sleep(2)
         print("  Kavak: complete os passos restantes do funil se o bot não os reconhecer.")
 

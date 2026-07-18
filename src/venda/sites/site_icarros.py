@@ -5,11 +5,13 @@ iCarros — anúncio via https://www.icarros.com.br/vender.
 ATENÇÃO: anunciar no iCarros é PAGO (planos a partir de ~R$50). O bot
 preenche os dados do veículo; a escolha do plano e o PAGAMENTO ficam
 sempre com você (o bot nunca paga nada sozinho). Seletores best-effort —
-calibrar na primeira execução real.
+calibrar com as capturas de %LOCALAPPDATA%/MarketplaceBot/debug/icarros.
 """
 import time
 
-from venda.sites.base import SiteAdapter, preencher_campo, clicar, enviar_fotos
+from venda.sites.base import (
+    SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
+    esperar_formulario)
 
 
 class SiteICarros(SiteAdapter):
@@ -20,15 +22,16 @@ class SiteICarros(SiteAdapter):
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.icarros.com.br/vender")
         pagina.wait_for_load_state("domcontentloaded")
-        pagina.wait_for_timeout(2000)
+        esperar_formulario(pagina)
         clicar(pagina, [
             'a:has-text("Começar anúncio")',
             'button:has-text("Começar anúncio")',
             'a:has-text("Anunciar")',
         ], "Começar anúncio")
-        pagina.wait_for_timeout(2000)
+        esperar_formulario(pagina)
 
     def preencher(self, pagina, veiculo):
+        dump_diagnostico(pagina, self.id, "inicio")
         # o fluxo costuma começar pela placa (busca os dados do veículo)
         preencher_campo(pagina, [
             'input[name*="placa" i]', 'input[placeholder*="placa" i]',
@@ -56,6 +59,7 @@ class SiteICarros(SiteAdapter):
         ], veiculo.get("descricao"), "Descrição")
 
         enviar_fotos(pagina, veiculo, ['input[type="file"]'])
+        dump_diagnostico(pagina, self.id, "fim")
         time.sleep(2)
         print("  ATENÇÃO: iCarros é pago — escolha do plano e pagamento são manuais.")
 

@@ -11,6 +11,7 @@ Regras:
 - dry_run: preenche o formulário mas NÃO publica nem registra.
 """
 import json
+import sys
 
 from playwright.sync_api import sync_playwright
 
@@ -27,6 +28,14 @@ def carregar_parametros():
 
 
 def main():
+    # o console do Windows (cp1252) pode não aceitar ✓ e afins — um print
+    # jamais pode estourar (e mascarar) uma ação que já foi executada
+    for saida in (sys.stdout, sys.stderr):
+        try:
+            saida.reconfigure(errors="replace")
+        except Exception:
+            pass
+
     params = carregar_parametros()
     veiculos = params["veiculos"]
     sites_ids = params["sites"]
