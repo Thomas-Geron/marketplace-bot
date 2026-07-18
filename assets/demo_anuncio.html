@@ -35,12 +35,15 @@
     <textarea id="descricao" name="descricao" rows="4"
               placeholder="Detalhes do veículo"></textarea>
 
-    <button id="publicar" onclick="publicar()">Publicar anúncio</button>
+    <button id="publicar" type="button" onclick="publicarAnuncio()">Publicar anúncio</button>
     <div id="confirmacao">Anúncio publicado com sucesso! (simulação)</div>
   </form>
 </main>
 <script>
-  function publicar() {
+  // Nome diferente do id do botão: em handlers inline, os controles do
+  // form entram na cadeia de escopo e "publicar" resolveria para o
+  // PRÓPRIO botão (não para a função), quebrando o clique.
+  function publicarAnuncio() {
     document.getElementById("confirmacao").style.display = "block";
   }
 </script>
