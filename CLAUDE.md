@@ -1,9 +1,9 @@
 # MarketplaceBot — contexto do projeto
 
 Bot desktop Windows (Tkinter + Playwright) com dois modos, escolhidos numa
-tela inicial: **Compra** (busca anúncios no Facebook Marketplace e envia
-mensagens) e **Venda/Anúncio** (anuncia veículos do banco Supabase do usuário
-em sites de classificados). Distribuído por instalador com auto-update.
+tela inicial: **Compra** (busca anúncios no Facebook Marketplace ou na OLX
+e envia mensagens) e **Venda/Anúncio** (anuncia veículos do banco Supabase
+do usuário em sites de classificados). Distribuído por instalador com auto-update.
 
 ## Distribuição e release
 
@@ -42,18 +42,33 @@ Adaptadores plugáveis (1 arquivo por site + registro no `__init__.py`):
 manual), `mobiauto`, `napista` (conta de loja), `kavak` (funil de COTAÇÃO,
 não é classificado) e `demo` (formulário local em assets/ para testes).
 Login nos sites é sempre manual (bot abre abas → usuário loga → Prosseguir).
+Calibração: `dump_diagnostico` (sites/base.py) salva `[diag]` no log +
+screenshot + HTML em `%LOCALAPPDATA%\MarketplaceBot\debug\<site>` — ajustar
+seletores sempre a partir dessas capturas. Prints de sucesso usam "OK"
+(nunca ✓: console cp1252 já mascarou sucesso como falha).
 
 ## Estado atual / pendências
 
-- Seletores dos sites reais são best-effort: **calibração pendente** site a
-  site (rodar em dry-run, ver `!` no log, ajustar seletores).
+- **Facebook (Venda) calibrado** (jul/2026) com capturas reais: campos
+  estruturados preenchidos (tipo "Carro/picape", ano, fabricante, km,
+  cor, combustível, câmbio); Estilo da carroceria, Cor interna e
+  Condição do veículo ficam manuais (não existem no banco).
+- Demais sites de Venda: instrumentados com diagnóstico; calibração
+  pendente site a site (rodar dry-run e ajustar com as capturas).
+- Compra multi-site: **OLX adicionada** (`src/compra_olx.py`, fluxo
+  paralelo despachado pelo parâmetro `site` do parametros.json).
+  Seletores da OLX ainda não calibrados — a primeira rodada em dry-run
+  é de coleta de capturas; filtro de região da OLX pendente (v1 busca
+  nacional por produto + preço).
 - Verificar se os inserts do site do Thomas gravam `user_id` (senão o
   veículo novo não aparece no bot do dono).
 - Release **v1.1.0** (modo Venda) só depois da calibração.
-- Compra multi-site (leads em portais) foi adiada — decisão consciente.
 
 ## Restrições
 
-- Não alterar a lógica do bot de Compra (filtros/coleta/mensagem/timing).
+- Não alterar a lógica do bot de Compra no Facebook (filtros/coleta/
+  mensagem/timing em run.py, filtros.py, coleta.py, mensagem.py e
+  config.py). A OLX vive em `src/compra_olx.py` (fluxo paralelo) e pode
+  evoluir livremente.
 - `python src/main.py` roda em dev; `--run-bot`, `--run-venda` e
   `--install-browser` são as flags internas.
