@@ -37,6 +37,7 @@ def carregar_parametros(caminho=None):
         preco_max=so_numeros(dados.get("preco_max")),
         quantidade=so_numeros(dados.get("quantidade")),
         dry_run=dados.get("dry_run", True),
+        site=dados.get("site", "facebook"),
     )
 
 
@@ -52,6 +53,12 @@ def main():
         print("Não dá pra rodar. Corrija:")
         for e in erros:
             print(" -", e)
+        return
+
+    if getattr(p, "site", "facebook") == "olx":
+        # OLX roda em módulo próprio — o fluxo do Facebook abaixo fica intacto
+        from compra_olx import executar
+        executar(p)
         return
 
     with sync_playwright() as pw:

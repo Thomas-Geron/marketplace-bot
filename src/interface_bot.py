@@ -63,6 +63,7 @@ def rodar():
         "quantidade": ent_qtd.get().strip(),
         "mensagem":   txt_msg.get("1.0", "end").strip(),
         "dry_run":    bool(var_dry.get()),
+        "site":       "olx" if cmb_site.get() == "OLX" else "facebook",
     }
     if not params["produto"] or not params["mensagem"]:
         status.set("Erro: Produto e Mensagem são obrigatórios.")
@@ -113,7 +114,7 @@ def ao_fechar():
 # ===================== janela =====================
 root = tk.Tk()
 root.title("Painel do Bot — estudo de seguranca")
-root.geometry("460x700")
+root.geometry("460x740")
 root.protocol("WM_DELETE_WINDOW", ao_fechar)
 
 frm = ttk.Frame(root, padding=14)
@@ -126,6 +127,12 @@ def campo(label):
     global linha
     ttk.Label(frm, text=label).grid(row=linha, column=0, sticky="w", pady=(6, 0))
     linha += 1
+
+campo("Site de busca")
+cmb_site = ttk.Combobox(frm, state="readonly",
+                        values=["Facebook Marketplace", "OLX"])
+cmb_site.set("Facebook Marketplace")
+cmb_site.grid(row=linha, column=0, sticky="we"); linha += 1
 
 campo("Produto")
 ent_produto = ttk.Entry(frm); ent_produto.grid(row=linha, column=0, sticky="we"); linha += 1

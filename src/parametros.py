@@ -14,6 +14,8 @@ class Parametros:
     preco_max: Optional[int] = None
     quantidade: Optional[int] = None
     dry_run: bool = True
+    # site de busca da Compra: "facebook" (padrão) ou "olx"
+    site: str = "facebook"
 
     def __post_init__(self):
         # limpa qualquer coisa que não seja número
