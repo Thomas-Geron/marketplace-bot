@@ -11,7 +11,7 @@ import time
 
 from venda.sites.base import (
     SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
-    esperar_formulario)
+    detectar_barreira, esperar_formulario, fechar_cookies)
 
 
 class SiteNaPista(SiteAdapter):
@@ -22,7 +22,15 @@ class SiteNaPista(SiteAdapter):
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://napista.com.br/loja")
         pagina.wait_for_load_state("domcontentloaded")
-        esperar_formulario(pagina)
+        pagina.wait_for_timeout(3000)
+        fechar_cookies(pagina)
+        # /loja redireciona para auth.napista.com.br quando não há sessão:
+        # sem conta de lojista logada não existe formulário para preencher
+        barreira = detectar_barreira(pagina)
+        if barreira:
+            print(f"  ! NaPista caiu em {barreira}: faça login como lojista "
+                  "nesta aba e rode de novo.")
+            return
         clicar(pagina, [
             'a:has-text("Anunciar")', 'button:has-text("Anunciar")',
             'a:has-text("Novo anúncio")', 'button:has-text("Novo anúncio")',
@@ -32,6 +40,10 @@ class SiteNaPista(SiteAdapter):
 
     def preencher(self, pagina, veiculo):
         dump_diagnostico(pagina, self.id, "inicio")
+        barreira = detectar_barreira(pagina)
+        if barreira:
+            print(f"  ! NaPista em {barreira} — nada a preencher.")
+            return
         preencher_campo(pagina, [
             'input[name*="placa" i]', 'input[placeholder*="placa" i]',
         ], veiculo.get("placa"), "Placa")

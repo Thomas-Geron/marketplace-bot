@@ -11,7 +11,7 @@ import time
 
 from venda.sites.base import (
     SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
-    esperar_formulario)
+    detectar_barreira, esperar_formulario, fechar_cookies)
 
 
 class SiteICarros(SiteAdapter):
@@ -22,16 +22,24 @@ class SiteICarros(SiteAdapter):
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.icarros.com.br/vender")
         pagina.wait_for_load_state("domcontentloaded")
-        esperar_formulario(pagina)
+        pagina.wait_for_timeout(3000)
+        fechar_cookies(pagina)
+        # a landing não tem formulário nenhum: o fluxo abre por um <button>
+        # ("Começar anúncio") — o <a> equivalente não existe mais
         clicar(pagina, [
-            'a:has-text("Começar anúncio")',
             'button:has-text("Começar anúncio")',
-            'a:has-text("Anunciar")',
+            'a:has-text("Começar anúncio")',
+            'button:has-text("Anunciar grátis")',
         ], "Começar anúncio")
         esperar_formulario(pagina)
 
     def preencher(self, pagina, veiculo):
         dump_diagnostico(pagina, self.id, "inicio")
+        barreira = detectar_barreira(pagina)
+        if barreira:
+            print(f"  ! iCarros caiu em {barreira}: faça login nesta aba e "
+                  "rode de novo — o bot nunca faz login sozinho.")
+            return
         # o fluxo costuma começar pela placa (busca os dados do veículo)
         preencher_campo(pagina, [
             'input[name*="placa" i]', 'input[placeholder*="placa" i]',

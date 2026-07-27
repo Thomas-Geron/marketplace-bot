@@ -22,6 +22,69 @@ import requests
 from paths import get_data_dir
 
 
+def fechar_cookies(pagina):
+    """Fecha o banner de cookies, que costuma cobrir a página e engolir
+    cliques (a Kavak usa OneTrust, que bloqueia o funil inteiro)."""
+    candidatos = [
+        "#onetrust-accept-btn-handler",
+        "#accept-recommended-btn-handler",
+        ".save-preference-btn-handler",
+        'button:has-text("Aceitar todos")',
+        'button:has-text("Permitir todos")',
+        'button:has-text("Aceitar")',
+        'button:has-text("Concordo")',
+        'button:has-text("Entendi")',
+    ]
+    for sel in candidatos:
+        try:
+            loc = pagina.locator(sel).first
+            if loc.count() == 0 or not loc.is_visible():
+                continue
+            loc.click(timeout=5000)
+            pagina.wait_for_timeout(1200)
+            print("  OK banner de cookies fechado")
+            return True
+        except Exception:
+            continue
+    return False
+
+
+# páginas de login/bloqueio: o bot não tenta contornar, só avisa e para
+_BARREIRAS_URL = (
+    ("accounts.icarros.com", "login do iCarros"),
+    ("auth.napista.com.br", "login da NaPista"),
+    ("/login", "tela de login"),
+    ("openid-connect/auth", "tela de login"),
+)
+_BARREIRAS_TEXTO = (
+    ("you have been blocked", "bloqueio antibot (Cloudflare)"),
+    ("verifique que você é humano", "verificação antibot"),
+    ("verify you are human", "verificação antibot"),
+    ("acesso negado", "acesso negado pelo site"),
+)
+
+
+def detectar_barreira(pagina):
+    """Se a página for login ou bloqueio antibot, devolve o motivo (str);
+    senão, None. Serve para o bot parar com uma mensagem clara em vez de
+    tentar preencher campos que não existem."""
+    try:
+        url = (pagina.url or "").lower()
+    except Exception:
+        return None
+    for marca, motivo in _BARREIRAS_URL:
+        if marca in url:
+            return motivo
+    try:
+        corpo = (pagina.locator("body").inner_text(timeout=5000) or "").lower()
+    except Exception:
+        return None
+    for marca, motivo in _BARREIRAS_TEXTO:
+        if marca in corpo:
+            return motivo
+    return None
+
+
 def _detalhe_erro(exc):
     """Resumo de 1 linha da última exceção, para o log de falha."""
     if exc is None:

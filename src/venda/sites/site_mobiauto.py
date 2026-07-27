@@ -11,7 +11,7 @@ import time
 
 from venda.sites.base import (
     SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
-    esperar_formulario)
+    detectar_barreira, esperar_formulario, fechar_cookies)
 
 
 class SiteMobiauto(SiteAdapter):
@@ -20,12 +20,28 @@ class SiteMobiauto(SiteAdapter):
     url_home = "https://www.mobiauto.com.br/"
 
     def abrir_novo_anuncio(self, pagina):
-        pagina.goto("https://www.mobiauto.com.br/vender")
+        # /vender é só a landing; o formulário real fica em /vender/criar-anuncio
+        pagina.goto("https://www.mobiauto.com.br/vender/criar-anuncio")
         pagina.wait_for_load_state("domcontentloaded")
+        pagina.wait_for_timeout(3000)
+        fechar_cookies(pagina)
         esperar_formulario(pagina)
 
     def preencher(self, pagina, veiculo):
         dump_diagnostico(pagina, self.id, "inicio")
+        barreira = detectar_barreira(pagina)
+        if barreira:
+            print(f"  ! Mobiauto caiu em {barreira}: faça login nesta aba "
+                  "e rode de novo.")
+            return
+        # o fluxo começa pelos dados do vendedor (e-mail/nome/CPF/telefone),
+        # que não vivem no banco de veículos — quem preenche é o usuário
+        if pagina.locator('input[name="cpf"]').count():
+            print("  ! Mobiauto está pedindo os dados do vendedor "
+                  "(e-mail/nome/CPF/telefone). Preencha uma vez nesta aba e "
+                  "clique em continuar; o bot segue do formulário do veículo.")
+            dump_diagnostico(pagina, self.id, "dados-vendedor")
+            return
         preencher_campo(pagina, [
             'input[name*="placa" i]', 'input[placeholder*="placa" i]',
             'input[id*="placa" i]',
