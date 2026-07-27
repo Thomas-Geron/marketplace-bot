@@ -41,11 +41,21 @@ Adaptadores plugáveis (1 arquivo por site + registro no `__init__.py`):
 `facebook` (form /marketplace/create/vehicle), `icarros` (PAGO — pagamento
 manual), `mobiauto`, `napista` (conta de loja), `kavak` (funil de COTAÇÃO,
 não é classificado) e `demo` (formulário local em assets/ para testes).
-Login nos sites é sempre manual (bot abre abas → usuário loga → Prosseguir).
+Login nos sites é sempre manual (bot abre abas → usuário loga → Prosseguir);
+`detectar_barreira` (base.py) reconhece tela de login/bloqueio e o adaptador
+para com aviso em vez de preencher o nada. `fechar_cookies` roda antes do
+formulário (o OneTrust da Kavak engolia todos os cliques).
+
 Calibração: `dump_diagnostico` (sites/base.py) salva `[diag]` no log +
 screenshot + HTML em `%LOCALAPPDATA%\MarketplaceBot\debug\<site>` — ajustar
 seletores sempre a partir dessas capturas. Prints de sucesso usam "OK"
 (nunca ✓: console cp1252 já mascarou sucesso como falha).
+
+Testar seletor contra HTML capturado: abrir a captura com
+`new_context(java_script_enabled=False)` — com JS ligado o React/Angular
+rehidrata e limpa o DOM salvo (dá falso negativo em tudo). Lembrar que
+`:text-is()` só casa elemento com nó de texto DIRETO (na Kavak o texto está
+num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 
 ## Estado atual / pendências
 
@@ -53,13 +63,23 @@ seletores sempre a partir dessas capturas. Prints de sucesso usam "OK"
   estruturados preenchidos (tipo "Carro/picape", ano, fabricante, km,
   cor, combustível, câmbio); Estilo da carroceria, Cor interna e
   Condição do veículo ficam manuais (não existem no banco).
-- Demais sites de Venda: instrumentados com diagnóstico; calibração
-  pendente site a site (rodar dry-run e ajustar com as capturas).
-- Compra multi-site: **OLX adicionada** (`src/compra_olx.py`, fluxo
-  paralelo despachado pelo parâmetro `site` do parametros.json).
-  Seletores da OLX ainda não calibrados — a primeira rodada em dry-run
-  é de coleta de capturas; filtro de região da OLX pendente (v1 busca
-  nacional por produto + preço).
+- **Kavak calibrada** (jul/2026): funil na própria home, em cascata
+  Ano → Marca → Modelo (`aui-select`, opções `button.option`), botão
+  `button[aria-label="Fazer cotação"]`; não há atalho por placa.
+- **iCarros e NaPista exigem login** (accounts.icarros.com /
+  auth.napista.com.br) — sem sessão não existe formulário; o adaptador
+  detecta e avisa. **Mobiauto**: o form real é `/vender/criar-anuncio` e
+  começa pelos dados do vendedor (e-mail/nome/CPF/telefone), que não
+  vivem no banco → o usuário preenche essa etapa uma vez.
+- Compra multi-site: **OLX calibrada** com captura real (jul/2026) —
+  cards `a[data-testid="adcard-link"]`, chat por `button:has-text("Chat")`,
+  filtros do painel por id (`mileage_*`, `regdate_*`, `price_*`) e
+  **região por subdomínio de UF** derivada do CEP (a OLX não tem raio em
+  km), com fallback para busca nacional. A OLX **bloqueia** navegação
+  automatizada insistente (Cloudflare): o bot detecta e para com aviso —
+  nunca tentar contornar; rodar menos anúncios por vez.
+- Interface da Compra tem filtros extras só da OLX (ano de/até, km até,
+  câmbio); o Facebook ignora esses campos.
 - Verificar se os inserts do site do Thomas gravam `user_id` (senão o
   veículo novo não aparece no bot do dono).
 - Release **v1.1.0** (modo Venda) só depois da calibração.
