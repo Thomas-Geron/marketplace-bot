@@ -16,6 +16,11 @@ class Parametros:
     dry_run: bool = True
     # site de busca da Compra: "facebook" (padrão) ou "olx"
     site: str = "facebook"
+    # filtros extras que hoje só a OLX oferece (o Facebook os ignora)
+    ano_min: Optional[int] = None
+    ano_max: Optional[int] = None
+    km_max: Optional[int] = None
+    cambio: str = ""
 
     def __post_init__(self):
         # limpa qualquer coisa que não seja número

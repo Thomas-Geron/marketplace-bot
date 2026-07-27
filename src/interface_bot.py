@@ -64,6 +64,10 @@ def rodar():
         "mensagem":   txt_msg.get("1.0", "end").strip(),
         "dry_run":    bool(var_dry.get()),
         "site":       "olx" if cmb_site.get() == "OLX" else "facebook",
+        "ano_min":    ent_ano_min.get().strip(),
+        "ano_max":    ent_ano_max.get().strip(),
+        "km_max":     ent_km_max.get().strip(),
+        "cambio":     cmb_cambio.get(),
     }
     if not params["produto"] or not params["mensagem"]:
         status.set("Erro: Produto e Mensagem são obrigatórios.")
@@ -114,7 +118,7 @@ def ao_fechar():
 # ===================== janela =====================
 root = tk.Tk()
 root.title("Painel do Bot — estudo de seguranca")
-root.geometry("460x740")
+root.geometry("460x860")
 root.protocol("WM_DELETE_WINDOW", ao_fechar)
 
 frm = ttk.Frame(root, padding=14)
@@ -156,6 +160,32 @@ cmb_raio.set("60"); cmb_raio.grid(row=linha, column=0, sticky="we"); linha += 1
 campo("Quantidade (vazio = todos)")
 ent_qtd = ttk.Entry(frm, validate="key", validatecommand=vcmd)
 ent_qtd.grid(row=linha, column=0, sticky="we"); linha += 1
+
+# filtros que so a OLX tem hoje (o Facebook ignora estes campos)
+ttk.Separator(frm, orient="horizontal").grid(
+    row=linha, column=0, sticky="we", pady=(10, 2)); linha += 1
+campo("Filtros extras (somente OLX)")
+
+frm_extra = ttk.Frame(frm); frm_extra.grid(row=linha, column=0, sticky="we")
+linha += 1
+ttk.Label(frm_extra, text="Ano de").grid(row=0, column=0, sticky="w")
+ent_ano_min = ttk.Entry(frm_extra, width=8, validate="key", validatecommand=vcmd)
+ent_ano_min.grid(row=0, column=1, padx=(4, 10))
+ttk.Label(frm_extra, text="ate").grid(row=0, column=2, sticky="w")
+ent_ano_max = ttk.Entry(frm_extra, width=8, validate="key", validatecommand=vcmd)
+ent_ano_max.grid(row=0, column=3, padx=(4, 10))
+ttk.Label(frm_extra, text="KM ate").grid(row=0, column=4, sticky="w")
+ent_km_max = ttk.Entry(frm_extra, width=10, validate="key", validatecommand=vcmd)
+ent_km_max.grid(row=0, column=5, padx=(4, 0))
+
+campo("Cambio (somente OLX)")
+cmb_cambio = ttk.Combobox(frm, state="readonly",
+                          values=["Qualquer", "Manual", "Automático",
+                                  "Semi-Automático", "Automatizado"])
+cmb_cambio.set("Qualquer")
+cmb_cambio.grid(row=linha, column=0, sticky="we"); linha += 1
+ttk.Separator(frm, orient="horizontal").grid(
+    row=linha, column=0, sticky="we", pady=(4, 6)); linha += 1
 
 campo("Mensagem que o bot vai enviar")
 txt_msg = tk.Text(frm, height=3); txt_msg.grid(row=linha, column=0, sticky="we"); linha += 1

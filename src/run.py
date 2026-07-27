@@ -38,6 +38,10 @@ def carregar_parametros(caminho=None):
         quantidade=so_numeros(dados.get("quantidade")),
         dry_run=dados.get("dry_run", True),
         site=dados.get("site", "facebook"),
+        ano_min=so_numeros(dados.get("ano_min")),
+        ano_max=so_numeros(dados.get("ano_max")),
+        km_max=so_numeros(dados.get("km_max")),
+        cambio=dados.get("cambio", ""),
     )
 
 
