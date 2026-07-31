@@ -115,7 +115,10 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   anúncios) grava as capturas em `debug/olx-compra` para fechar.
 - Verificar se os inserts do site do Thomas gravam `user_id` (senão o
   veículo novo não aparece no bot do dono).
-- Release **v1.1.0** (modo Venda) só depois da calibração.
+- Release **v1.1.0** publicada (jul/2026): modo Venda + Facebook da Venda
+  calibrado + iCarros como fonte de Compra. Sites ainda não calibrados
+  saem como "Em breve" na interface, o que torna a versão publicável
+  mesmo com a calibração incompleta.
 
 ## Restrições
 
