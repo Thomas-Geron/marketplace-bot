@@ -207,20 +207,33 @@ def enviar_mensagem_olx(pagina, mensagem, dry_run):
     return True
 
 
-def _bloqueada(pagina, momento):
-    """True se a OLX barrou o acesso (Cloudflare/antibot).
+def _barreira_olx(pagina, momento):
+    """Motivo pelo qual a OLX barrou o acesso, ou None se está tudo certo.
 
-    A OLX barra o navegador AUTOMATIZADO (o mesmo endereço abre normal num
-    navegador comum): o Cloudflare enxerga os sinais de automação. O bot
-    não mascara esses sinais — quem resolve a verificação é você, na
-    janela aberta, e o bot segue na mesma sessão.
+    São dois casos bem diferentes:
+    - "verificação antibot": desafio interativo — o usuário resolve na
+      janela aberta e o bot segue na mesma sessão;
+    - "bloqueio de firewall": a OLX negou o acesso a esta sessão
+      automatizada (Cloudflare 1020). NÃO há o que resolver na janela; a
+      mesma URL costuma abrir normal num navegador comum. O bot não
+      mascara os sinais de automação para contornar isso.
     """
     barreira = detectar_barreira(pagina)
-    if barreira and any(t in barreira for t in ("bloqueio", "antibot", "negado")):
+    if barreira and any(t in barreira for t in
+                        ("bloqueio", "antibot", "verificação", "negado")):
         print(f"  ! OLX barrou o acesso ({barreira}) em {momento}.")
         dump_diagnostico(pagina, "olx-compra", f"bloqueio-{momento}")
-        return True
-    return False
+        return barreira
+    return None
+
+
+def _explicar_firewall():
+    print("    Isto é bloqueio de acesso, não um desafio: não há captcha "
+          "para resolver na janela.")
+    print("    A OLX barra o navegador automatizado — a mesma busca costuma "
+          "abrir normalmente no seu navegador do dia a dia.")
+    print("    O bot NÃO disfarça os sinais de automação para contornar o "
+          "bloqueio. Use a Compra no Facebook ou tente a OLX mais tarde.")
 
 
 def _tentar_liberar(pagina, url, contexto):
@@ -238,7 +251,7 @@ def _tentar_liberar(pagina, url, contexto):
     except Exception as exc:
         print(f"  ! não consegui recarregar a busca: {exc}")
         return False
-    if _bloqueada(pagina, "apos-verificacao"):
+    if _barreira_olx(pagina, "apos-verificacao"):
         print("  ! A OLX continua barrando. Tente mais tarde — e prefira "
               "poucos anúncios por rodada.")
         return False
@@ -272,10 +285,16 @@ def executar(p):
         fechar_cookies(pagina)
         esperar_formulario(pagina)
 
-        if _bloqueada(pagina, "busca") and not _tentar_liberar(
-                pagina, url, contexto):
-            contexto.close()
-            return
+        barreira = _barreira_olx(pagina, "busca")
+        if barreira:
+            liberou = False
+            if "verificação" in barreira:
+                liberou = _tentar_liberar(pagina, url, contexto)
+            else:
+                _explicar_firewall()
+            if not liberou:
+                contexto.close()
+                return
 
         # região inexistente/instável na OLX: cai para a busca nacional
         if uf and not _melhor_seletor(pagina, SEL_CARDS)[1]:
@@ -309,7 +328,8 @@ def executar(p):
 
             if i == 0:
                 dump_diagnostico(pagina, "olx-compra", "anuncio")
-            if _bloqueada(pagina, f"anuncio-{i + 1}"):
+            if _barreira_olx(pagina, f"anuncio-{i + 1}"):
+                _explicar_firewall()
                 break
 
             enviado = enviar_mensagem_olx(pagina, p.mensagem, p.dry_run)

@@ -56,11 +56,15 @@ _BARREIRAS_URL = (
     ("/login", "tela de login"),
     ("openid-connect/auth", "tela de login"),
 )
+# distinguir os dois casos importa: o desafio o usuário resolve na janela;
+# o bloqueio de firewall (Cloudflare 1020) não tem nada para resolver
 _BARREIRAS_TEXTO = (
-    ("you have been blocked", "bloqueio antibot (Cloudflare)"),
+    ("you have been blocked", "bloqueio de firewall (Cloudflare)"),
+    ("unable to access", "bloqueio de firewall (Cloudflare)"),
+    ("acesso negado", "acesso negado pelo site"),
     ("verifique que você é humano", "verificação antibot"),
     ("verify you are human", "verificação antibot"),
-    ("acesso negado", "acesso negado pelo site"),
+    ("just a moment", "verificação antibot"),
 )
 
 
