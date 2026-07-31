@@ -21,6 +21,10 @@ class Parametros:
     ano_max: Optional[int] = None
     km_max: Optional[int] = None
     cambio: str = ""
+    # dados de contato exigidos pelo formulário do anúncio no iCarros
+    nome_contato: str = ""
+    email_contato: str = ""
+    telefone_contato: str = ""
 
     def __post_init__(self):
         # limpa qualquer coisa que não seja número

@@ -33,6 +33,11 @@ def so_digitos(proposto):
     return proposto == "" or proposto.isdigit()
 
 
+def site_escolhido():
+    """id do site marcado no combo (SITES_COMPRA e definido mais abaixo)."""
+    return dict(SITES_COMPRA).get(cmb_site.get(), "facebook")
+
+
 def ler_saida(proc):
     """Thread separada: lê o que o bot imprime e joga na fila."""
     for linha in proc.stdout:
@@ -63,11 +68,14 @@ def rodar():
         "quantidade": ent_qtd.get().strip(),
         "mensagem":   txt_msg.get("1.0", "end").strip(),
         "dry_run":    bool(var_dry.get()),
-        "site":       "olx" if cmb_site.get() == "OLX" else "facebook",
+        "site":       site_escolhido(),
         "ano_min":    ent_ano_min.get().strip(),
         "ano_max":    ent_ano_max.get().strip(),
         "km_max":     ent_km_max.get().strip(),
         "cambio":     cmb_cambio.get(),
+        "nome_contato":     ent_nome.get().strip(),
+        "email_contato":    ent_email.get().strip(),
+        "telefone_contato": ent_telefone.get().strip(),
     }
     if not params["produto"] or not params["mensagem"]:
         status.set("Erro: Produto e Mensagem são obrigatórios.")
@@ -132,10 +140,20 @@ def campo(label):
     ttk.Label(frm, text=label).grid(row=linha, column=0, sticky="w", pady=(6, 0))
     linha += 1
 
+# Sites oferecidos na Compra (rotulo -> id usado no parametros.json).
+# A OLX saiu da lista a pedido do usuario (jul/2026): ela bloqueia a
+# navegacao automatizada (Cloudflare 1020) e o bot nao disfarca isso.
+# Para voltar, basta reincluir ("OLX", "olx") aqui — src/compra_olx.py
+# continua pronto e calibrado.
+SITES_COMPRA = [
+    ("Facebook Marketplace", "facebook"),
+    ("iCarros", "icarros"),
+]
+
 campo("Site de busca")
 cmb_site = ttk.Combobox(frm, state="readonly",
-                        values=["Facebook Marketplace", "OLX"])
-cmb_site.set("Facebook Marketplace")
+                        values=[rotulo for rotulo, _ in SITES_COMPRA])
+cmb_site.set(SITES_COMPRA[0][0])
 cmb_site.grid(row=linha, column=0, sticky="we"); linha += 1
 lbl_site_dica = ttk.Label(frm, text="", foreground="#b26a00", wraplength=430)
 lbl_site_dica.grid(row=linha, column=0, sticky="w"); linha += 1
@@ -189,6 +207,20 @@ cmb_cambio = ttk.Combobox(frm, state="readonly",
                                   "Semi-Automático", "Automatizado"])
 cmb_cambio.set("Qualquer")
 cmb_cambio.grid(row=linha, column=0, sticky="we"); linha += 1
+lbl_contato = ttk.Label(frm, text="Seus dados de contato (somente iCarros)")
+lbl_contato.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
+frm_contato = ttk.Frame(frm); frm_contato.grid(row=linha, column=0, sticky="we")
+linha += 1
+ttk.Label(frm_contato, text="Nome").grid(row=0, column=0, sticky="w")
+ent_nome = ttk.Entry(frm_contato, width=16)
+ent_nome.grid(row=0, column=1, padx=(4, 8))
+ttk.Label(frm_contato, text="E-mail").grid(row=0, column=2, sticky="w")
+ent_email = ttk.Entry(frm_contato, width=20)
+ent_email.grid(row=0, column=3, padx=(4, 8))
+ttk.Label(frm_contato, text="Telefone").grid(row=0, column=4, sticky="w")
+ent_telefone = ttk.Entry(frm_contato, width=14)
+ent_telefone.grid(row=0, column=5, padx=(4, 0))
+
 ttk.Separator(frm, orient="horizontal").grid(
     row=linha, column=0, sticky="we", pady=(4, 6)); linha += 1
 
@@ -225,26 +257,43 @@ def atualizar_campos_do_site(*_):
     - Facebook: filtra por CEP + raio em km; nao tem ano/km/cambio.
     - OLX: filtra por estado (derivado do CEP) e tem ano/km/cambio.
     """
-    olx = cmb_site.get() == "OLX"
+    site = site_escolhido()
+    olx = site == "olx"
+    icarros = site == "icarros"
 
     for entrada in (ent_ano_min, ent_ano_max, ent_km_max):
         entrada.configure(state="normal" if olx else "disabled")
     cmb_cambio.configure(state="readonly" if olx else "disabled")
-    cmb_raio.configure(state="disabled" if olx else "readonly")
+    cmb_raio.configure(state="disabled" if (olx or icarros) else "readonly")
+    for entrada in (ent_nome, ent_email, ent_telefone):
+        entrada.configure(state="normal" if icarros else "disabled")
 
     lbl_raio.configure(
-        text="Raio (km) - a OLX nao usa raio" if olx else "Raio (km)",
-        foreground=CINZA if olx else PRETO)
+        text=("Raio (km) - este site nao usa raio" if (olx or icarros)
+              else "Raio (km)"),
+        foreground=CINZA if (olx or icarros) else PRETO)
     for rotulo, texto in ((lbl_extras, "Filtros extras"),
                           (lbl_cambio, "Cambio")):
         rotulo.configure(
             text=texto if olx else f"{texto} - somente OLX",
             foreground=PRETO if olx else CINZA)
-    lbl_site_dica.configure(text=(
-        "OLX: a regiao vem do estado do CEP (a OLX nao tem raio em km) e o "
-        "chat exige login. Rode poucos anuncios por vez: a OLX bloqueia "
-        "navegacao automatizada insistente." if olx else
-        "Facebook: filtra por CEP + raio em km."))
+    lbl_contato.configure(
+        text=("Seus dados de contato (o anuncio do iCarros exige)" if icarros
+              else "Seus dados de contato - somente iCarros"),
+        foreground=PRETO if icarros else CINZA)
+
+    if olx:
+        dica = ("OLX: a regiao vem do estado do CEP (a OLX nao tem raio em "
+                "km) e o chat exige login. Rode poucos anuncios por vez: a "
+                "OLX bloqueia navegacao automatizada insistente.")
+    elif icarros:
+        dica = ("iCarros: escreva MARCA e MODELO em Produto (ex.: "
+                "'chevrolet onix'). Nao exige login, mas o formulario do "
+                "anuncio manda seu nome/e-mail/telefone ao vendedor. A "
+                "regiao vem do estado do CEP e o preco e filtrado pelo bot.")
+    else:
+        dica = "Facebook: filtra por CEP + raio em km."
+    lbl_site_dica.configure(text=dica)
 
 
 cmb_site.bind("<<ComboboxSelected>>", atualizar_campos_do_site)

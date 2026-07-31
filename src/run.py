@@ -42,6 +42,9 @@ def carregar_parametros(caminho=None):
         ano_max=so_numeros(dados.get("ano_max")),
         km_max=so_numeros(dados.get("km_max")),
         cambio=dados.get("cambio", ""),
+        nome_contato=dados.get("nome_contato", ""),
+        email_contato=dados.get("email_contato", ""),
+        telefone_contato=dados.get("telefone_contato", ""),
     )
 
 
@@ -59,9 +62,15 @@ def main():
             print(" -", e)
         return
 
-    if getattr(p, "site", "facebook") == "olx":
-        # OLX roda em módulo próprio — o fluxo do Facebook abaixo fica intacto
+    # cada fonte que não é o Facebook roda em módulo próprio — o fluxo do
+    # Facebook abaixo fica intacto
+    site = getattr(p, "site", "facebook")
+    if site == "olx":
         from compra_olx import executar
+        executar(p)
+        return
+    if site == "icarros":
+        from compra_icarros import executar
         executar(p)
         return
 

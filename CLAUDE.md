@@ -84,10 +84,25 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   km), com fallback para busca nacional. A OLX **bloqueia** navegação
   automatizada insistente (Cloudflare): o bot detecta e para com aviso —
   nunca tentar contornar; rodar menos anúncios por vez.
+- Fontes de Compra vivem em `SITES_COMPRA` (interface_bot.py) e são
+  despachadas por `site` no run.py: `facebook` (run.py), `icarros`
+  (compra_icarros.py) e `olx` (compra_olx.py, **fora da lista** por
+  decisão do usuário — Cloudflare; para voltar, reincluir na lista).
+- **iCarros como fonte de Compra** (jul/2026, calibrado ao vivo): o
+  anúncio tem formulário próprio (nome/e-mail/telefone/observações +
+  "Enviar mensagem") e **não exige login** — por isso entrou. Detalhes
+  que custaram investigação: só filtra com marca E modelo no caminho
+  (`/comprar/usados/<marca>/<modelo>`; `/comprar/carros/onix` devolve
+  qualquer marca) e os filtros de preço/ano por querystring são
+  ignorados, então o bot lê o preço do card e filtra por faixa e por UF
+  (a cidade está na URL do anúncio). Anúncio só com WhatsApp é pulado.
+- Análise das outras fontes: **Mobiauto** tem chat, mas exige login;
+  **NaPista** só oferece WhatsApp no anúncio; **Kavak** é revenda (não
+  há vendedor para abordar). Nenhum virou fonte de Compra.
 - Interface da Compra habilita por site o que cada um aceita: Facebook =
-  CEP + raio em km; OLX = ano de/até, km até e câmbio (e raio some, pois
-  a OLX regionaliza por estado). O gating é do `<<ComboboxSelected>>` em
-  interface_bot.py.
+  CEP + raio em km; iCarros = dados de contato (o formulário exige) e
+  produto com marca+modelo; OLX = ano de/até, km até e câmbio. O gating
+  é do `<<ComboboxSelected>>` em interface_bot.py.
 - **Compra/Facebook verificada ao vivo** (jul/2026): os 8 seletores do
   config.py conferem (busca, cards, Localização, campo de cidade, raio,
   Aplicar, preço mín/máx) — não foi preciso mudar nada.
