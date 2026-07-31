@@ -20,9 +20,12 @@ Calibrado com capturas reais da OLX (jul/2026):
   convertido em UF; se a região não responder, cai para a busca nacional.
 - o chat do anúncio abre por `button:has-text("Chat")`.
 
-A OLX limita navegação automatizada (Cloudflare). O bot DETECTA o bloqueio
-e para com uma mensagem clara — não tenta contornar. Se acontecer, espere
-um pouco e rode de novo, com menos anúncios por rodada.
+A OLX barra o navegador AUTOMATIZADO: a mesma URL abre normalmente num
+navegador comum, mas o Cloudflare reconhece os sinais de automação do
+Playwright. O bot NÃO mascara esses sinais; quando detecta o bloqueio ele
+deixa a janela aberta para VOCÊ resolver a verificação e clicar em
+'Prosseguir' (mesmo mecanismo do login), e só então continua. Rodar
+poucos anúncios por vez reduz a chance de cair na verificação.
 """
 import random
 import sys
@@ -205,16 +208,42 @@ def enviar_mensagem_olx(pagina, mensagem, dry_run):
 
 
 def _bloqueada(pagina, momento):
-    """True se a OLX barrou o acesso (Cloudflare/antibot)."""
+    """True se a OLX barrou o acesso (Cloudflare/antibot).
+
+    A OLX barra o navegador AUTOMATIZADO (o mesmo endereço abre normal num
+    navegador comum): o Cloudflare enxerga os sinais de automação. O bot
+    não mascara esses sinais — quem resolve a verificação é você, na
+    janela aberta, e o bot segue na mesma sessão.
+    """
     barreira = detectar_barreira(pagina)
     if barreira and any(t in barreira for t in ("bloqueio", "antibot", "negado")):
         print(f"  ! OLX barrou o acesso ({barreira}) em {momento}.")
-        print("    O bot NÃO tenta contornar. Espere alguns minutos, resolva "
-              "a verificação na janela aberta e rode de novo com menos "
-              "anúncios por rodada.")
         dump_diagnostico(pagina, "olx-compra", f"bloqueio-{momento}")
         return True
     return False
+
+
+def _tentar_liberar(pagina, url, contexto):
+    """Bloqueio na abertura: em vez de desistir, deixa a janela aberta para
+    o usuário resolver a verificação e clicar em 'Prosseguir'. Retorna
+    True se a OLX liberou."""
+    print("    A janela está aberta: resolva a verificação nela (ou navegue "
+          "até a OLX normalmente) e clique em 'Prosseguir'.")
+    esperar_prosseguir(
+        "Resolva a verificação da OLX na janela e clique em 'Prosseguir'.")
+    try:
+        pagina.goto(url)
+        pagina.wait_for_load_state("domcontentloaded")
+        pagina.wait_for_timeout(4000)
+    except Exception as exc:
+        print(f"  ! não consegui recarregar a busca: {exc}")
+        return False
+    if _bloqueada(pagina, "apos-verificacao"):
+        print("  ! A OLX continua barrando. Tente mais tarde — e prefira "
+              "poucos anúncios por rodada.")
+        return False
+    print("  OK OLX liberada — seguindo.")
+    return True
 
 
 def executar(p):
@@ -243,7 +272,8 @@ def executar(p):
         fechar_cookies(pagina)
         esperar_formulario(pagina)
 
-        if _bloqueada(pagina, "busca"):
+        if _bloqueada(pagina, "busca") and not _tentar_liberar(
+                pagina, url, contexto):
             contexto.close()
             return
 

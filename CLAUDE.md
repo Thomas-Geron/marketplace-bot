@@ -91,10 +91,13 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 - **Compra/Facebook verificada ao vivo** (jul/2026): os 8 seletores do
   config.py conferem (busca, cards, Localização, campo de cidade, raio,
   Aplicar, preço mín/máx) — não foi preciso mudar nada.
-- **Chat da OLX ainda não capturado**: o Cloudflare bloqueou as
-  tentativas de recon (bloqueio dura horas e é por IP/fingerprint). Os
-  seletores do chat são candidatos; a primeira rodada real (com login e
-  poucos anúncios) grava as capturas em `debug/olx-compra` para fechar.
+- **Chat da OLX ainda não capturado**: o Cloudflare barra o navegador
+  AUTOMATIZADO (a mesma URL abre normal no navegador comum do usuário —
+  o gatilho é o fingerprint do Playwright, não o IP). O bot não mascara
+  esses sinais: ao detectar o bloqueio ele deixa a janela aberta para o
+  usuário resolver a verificação e clicar em 'Prosseguir'. Os seletores
+  do chat seguem como candidatos; a primeira rodada real (logado, poucos
+  anúncios) grava as capturas em `debug/olx-compra` para fechar.
 - Verificar se os inserts do site do Thomas gravam `user_id` (senão o
   veículo novo não aparece no bot do dono).
 - Release **v1.1.0** (modo Venda) só depois da calibração.
