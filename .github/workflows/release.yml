@@ -11,6 +11,9 @@ on:
   push:
     tags:
       - "v*"
+  # permite rodar o build à mão (Actions → Release → Run workflow) para
+  # validar a esteira sem publicar nada: sem tag, o job compila e para
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,11 +23,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # actions em major flutuante e já no runtime Node 24 (o Node 20 foi
+      # descontinuado pelo GitHub)
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"  # mesma versão usada em desenvolvimento
 
@@ -38,10 +43,14 @@ jobs:
         run: |
           $m = Select-String -Path src/version.py -Pattern '__version__\s*=\s*"([^"]+)"'
           $version = $m.Matches[0].Groups[1].Value
-          $tag = '${{ github.ref_name }}'.TrimStart('v')
-          if ($version -ne $tag) {
-            Write-Error "src/version.py diz '$version', mas a tag e 'v$tag'. Corrija antes de publicar."
-            exit 1
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            $tag = '${{ github.ref_name }}'.TrimStart('v')
+            if ($version -ne $tag) {
+              Write-Error "src/version.py diz '$version', mas a tag e 'v$tag'. Corrija antes de publicar."
+              exit 1
+            }
+          } else {
+            Write-Host "Execucao manual (sem tag): build de validacao da versao $version, sem publicar."
           }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
@@ -63,8 +72,10 @@ jobs:
           Copy-Item "dist/installer/MarketplaceBot-Setup-$env:VERSION.exe" `
                     "dist/installer/MarketplaceBot-Setup.exe"
 
+      # só publica quando veio de uma tag: execução manual serve para testar
       - name: Publicar GitHub Release
-        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/installer/MarketplaceBot-Setup*.exe
           generate_release_notes: true
