@@ -1,9 +1,16 @@
 # MarketplaceBot — contexto do projeto
 
 Bot desktop Windows (Tkinter + Playwright) com dois modos, escolhidos numa
-tela inicial: **Compra** (busca anúncios no Facebook Marketplace ou na OLX
-e envia mensagens) e **Venda/Anúncio** (anuncia veículos do banco Supabase
-do usuário em sites de classificados). Distribuído por instalador com auto-update.
+tela inicial: **Compra** (busca anúncios no Facebook Marketplace ou no
+iCarros e envia mensagens) e **Venda/Anúncio** (anuncia veículos do banco
+Supabase do usuário em sites de classificados). Distribuído por instalador
+com auto-update.
+
+Navegação: `interface_principal.iniciar()` é um laço — o seletor abre o modo
+escolhido e cada tela devolve `"voltar"` (o seletor reaparece) ou `"sair"`
+(encerra). Por isso `interface_bot` e `interface_venda` expõem `iniciar()` e
+NUNCA montam a GUI no import: seria impossível abrir a tela duas vezes no
+mesmo processo.
 
 ## Distribuição e release
 

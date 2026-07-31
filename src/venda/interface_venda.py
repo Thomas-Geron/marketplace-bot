@@ -26,17 +26,31 @@ log_queue = queue.Queue()
 
 
 def iniciar():
+    """Abre o painel de Venda. Retorna 'voltar' ou 'sair'."""
     global processo
     banco = BancoVeiculos()
     veiculos = []          # dicts normalizados vindos do banco
     vars_sites = {}        # site_id -> IntVar
+    resultado = {"acao": "sair"}
+
+    # fila nova a cada abertura: log velho não pode vazar para a sessão nova
+    global log_queue
+    log_queue = queue.Queue()
 
     root = tk.Tk()
     root.title("MarketplaceBot — Venda/Anúncio")
-    root.geometry("560x760")
+    root.geometry("560x800")
 
     frm = ttk.Frame(root, padding=14)
     frm.pack(fill="both", expand=True)
+
+    # topo: volta para a escolha Compra/Venda sem fechar o app
+    topo = ttk.Frame(frm)
+    topo.pack(fill="x", pady=(0, 8))
+    tk.Button(topo, text="← Voltar", command=lambda: encerrar("voltar"),
+              bg="#455a64", fg="white", width=10).pack(side="left")
+    ttk.Label(topo, text="  Venda / Anúncio — anunciar veículos do seu banco",
+              font=("Segoe UI", 9, "bold")).pack(side="left")
 
     status = tk.StringVar(value="Entre com sua conta para carregar seus veículos.")
 
@@ -156,11 +170,13 @@ def iniciar():
             log_queue.put(linha)
         log_queue.put("\n[anunciador encerrado]\n")
 
+    agendado = {"log": None}
+
     def drenar_log():
         while not log_queue.empty():
             txt_log.insert("end", log_queue.get_nowait())
             txt_log.see("end")
-        root.after(100, drenar_log)
+        agendado["log"] = root.after(100, drenar_log)
 
     def rodar():
         global processo
@@ -225,11 +241,20 @@ def iniciar():
     ttk.Label(frm, textvariable=status, foreground="#555",
               wraplength=520).pack(anchor="w", pady=(8, 0))
 
-    def ao_fechar():
+    def encerrar(acao):
+        """Sair da tela: o anunciador em execução é sempre parado antes."""
+        resultado["acao"] = acao
         parar()
+        # sem cancelar, o polling do log dispara depois do destroy e o Tk
+        # reclama de "invalid command name"
+        if agendado["log"] is not None:
+            try:
+                root.after_cancel(agendado["log"])
+            except Exception:
+                pass
         root.destroy()
 
-    root.protocol("WM_DELETE_WINDOW", ao_fechar)
+    root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
 
     # sessão salva: pula a tela de login
     if banco.tentar_sessao_salva():
@@ -237,3 +262,4 @@ def iniciar():
 
     drenar_log()
     root.mainloop()
+    return resultado["acao"]
