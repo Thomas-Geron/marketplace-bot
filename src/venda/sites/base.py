@@ -288,6 +288,12 @@ class SiteAdapter:
     nome = ""
     # página inicial/login — aberta primeiro para o usuário autenticar
     url_home = ""
+    # False enquanto o formulário do site não foi calibrado ponta a ponta:
+    # a interface mostra "Em breve" e não deixa marcar o site, e o
+    # anunciador ignora o site mesmo se ele vier num parametros_venda.json
+    # antigo. Ao calibrar, basta voltar para True.
+    disponivel = True
+    motivo_indisponivel = ""
 
     def abrir_novo_anuncio(self, pagina):
         """Navega até o formulário de novo anúncio, pronto para preencher."""

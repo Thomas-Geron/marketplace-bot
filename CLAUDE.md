@@ -41,6 +41,12 @@ Adaptadores plugáveis (1 arquivo por site + registro no `__init__.py`):
 `facebook` (form /marketplace/create/vehicle), `icarros` (PAGO — pagamento
 manual), `mobiauto`, `napista` (conta de loja), `kavak` (funil de COTAÇÃO,
 não é classificado) e `demo` (formulário local em assets/ para testes).
+Site sem formulário calibrado ponta a ponta leva `disponivel = False` +
+`motivo_indisponivel`: a interface o mostra cinza com "Em breve" e o
+anunciador o ignora mesmo vindo de um parametros_venda.json antigo. Ao
+calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista
+e Kavak estão em "Em breve").
+
 Login nos sites é sempre manual (bot abre abas → usuário loga → Prosseguir);
 `detectar_barreira` (base.py) reconhece tela de login/bloqueio e o adaptador
 para com aviso em vez de preencher o nada. `fechar_cookies` roda antes do

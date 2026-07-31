@@ -18,6 +18,8 @@ class SiteMobiauto(SiteAdapter):
     id = "mobiauto"
     nome = "Mobiauto"
     url_home = "https://www.mobiauto.com.br/"
+    disponivel = False
+    motivo_indisponivel = "pede dados do vendedor (CPF) fora do banco"
 
     def abrir_novo_anuncio(self, pagina):
         # /vender é só a landing; o formulário real fica em /vender/criar-anuncio

@@ -18,6 +18,8 @@ class SiteNaPista(SiteAdapter):
     id = "napista"
     nome = "NaPista"
     url_home = "https://napista.com.br/loja"
+    disponivel = False
+    motivo_indisponivel = "exige conta de lojista logada"
 
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://napista.com.br/loja")

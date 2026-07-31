@@ -18,6 +18,8 @@ class SiteICarros(SiteAdapter):
     id = "icarros"
     nome = "iCarros"
     url_home = "https://www.icarros.com.br/"
+    disponivel = False
+    motivo_indisponivel = "formulário exige login e o anúncio é pago"
 
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.icarros.com.br/vender")

@@ -31,6 +31,8 @@ class SiteKavak(SiteAdapter):
     id = "kavak"
     nome = "Kavak (cotação de venda)"
     url_home = "https://www.kavak.com/br/vender-carro"
+    disponivel = False
+    motivo_indisponivel = "funil mapeado só até Ano/Marca/Modelo"
 
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.kavak.com/br/vender-carro")

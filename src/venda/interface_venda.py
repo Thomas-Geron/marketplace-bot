@@ -121,7 +121,21 @@ def iniciar():
     for site in listar_sites():
         var = tk.IntVar(value=0)
         vars_sites[site.id] = var
-        ttk.Checkbutton(frm_sites, text=site.nome, variable=var).pack(anchor="w")
+        disponivel = getattr(site, "disponivel", True)
+        linha_site = ttk.Frame(frm_sites)
+        linha_site.pack(anchor="w", fill="x")
+        ttk.Checkbutton(
+            linha_site, text=site.nome, variable=var,
+            state="normal" if disponivel else "disabled",
+        ).pack(side="left")
+        if not disponivel:
+            # site ainda sem formulário calibrado ponta a ponta
+            ttk.Label(linha_site, text="Em breve",
+                      foreground="#b26a00").pack(side="left", padx=(6, 0))
+            motivo = getattr(site, "motivo_indisponivel", "")
+            if motivo:
+                ttk.Label(linha_site, text=f"({motivo})",
+                          foreground="#888").pack(side="left", padx=(4, 0))
     ttk.Label(
         frm_sites,
         text="Cada veículo é anunciado no máximo UMA vez por site (anti-spam).",

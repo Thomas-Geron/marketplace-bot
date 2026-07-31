@@ -41,6 +41,14 @@ def main():
     sites_ids = params["sites"]
     dry_run = params.get("dry_run", True)
 
+    # um parametros_venda.json antigo pode trazer site ainda não calibrado
+    indisponiveis = [s for s in sites_ids if not obter_site(s).disponivel]
+    for site_id in indisponiveis:
+        site = obter_site(site_id)
+        print(f"[ignorado] {site.nome} — Em breve "
+              f"({site.motivo_indisponivel})")
+    sites_ids = [s for s in sites_ids if s not in indisponiveis]
+
     if not veiculos or not sites_ids:
         print("Nada a fazer: selecione ao menos um veículo e um site.")
         return
