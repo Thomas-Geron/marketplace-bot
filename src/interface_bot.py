@@ -137,6 +137,8 @@ cmb_site = ttk.Combobox(frm, state="readonly",
                         values=["Facebook Marketplace", "OLX"])
 cmb_site.set("Facebook Marketplace")
 cmb_site.grid(row=linha, column=0, sticky="we"); linha += 1
+lbl_site_dica = ttk.Label(frm, text="", foreground="#b26a00", wraplength=430)
+lbl_site_dica.grid(row=linha, column=0, sticky="w"); linha += 1
 
 campo("Produto")
 ent_produto = ttk.Entry(frm); ent_produto.grid(row=linha, column=0, sticky="we"); linha += 1
@@ -152,7 +154,8 @@ ent_max.grid(row=linha, column=0, sticky="we"); linha += 1
 campo("CEP")
 ent_cep = ttk.Entry(frm); ent_cep.grid(row=linha, column=0, sticky="we"); linha += 1
 
-campo("Raio (km)")
+lbl_raio = ttk.Label(frm, text="Raio (km)")
+lbl_raio.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
 cmb_raio = ttk.Combobox(frm, state="readonly",
                         values=["1","2","5","10","20","40","60","80","100","250","500"])
 cmb_raio.set("60"); cmb_raio.grid(row=linha, column=0, sticky="we"); linha += 1
@@ -164,7 +167,8 @@ ent_qtd.grid(row=linha, column=0, sticky="we"); linha += 1
 # filtros que so a OLX tem hoje (o Facebook ignora estes campos)
 ttk.Separator(frm, orient="horizontal").grid(
     row=linha, column=0, sticky="we", pady=(10, 2)); linha += 1
-campo("Filtros extras (somente OLX)")
+lbl_extras = ttk.Label(frm, text="Filtros extras (somente OLX)")
+lbl_extras.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
 
 frm_extra = ttk.Frame(frm); frm_extra.grid(row=linha, column=0, sticky="we")
 linha += 1
@@ -178,7 +182,8 @@ ttk.Label(frm_extra, text="KM ate").grid(row=0, column=4, sticky="w")
 ent_km_max = ttk.Entry(frm_extra, width=10, validate="key", validatecommand=vcmd)
 ent_km_max.grid(row=0, column=5, padx=(4, 0))
 
-campo("Cambio (somente OLX)")
+lbl_cambio = ttk.Label(frm, text="Cambio (somente OLX)")
+lbl_cambio.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
 cmb_cambio = ttk.Combobox(frm, state="readonly",
                           values=["Qualquer", "Manual", "Automático",
                                   "Semi-Automático", "Automatizado"])
@@ -209,6 +214,41 @@ txt_log.grid(row=linha, column=0, sticky="we"); linha += 1
 status = tk.StringVar(value="Pronto. Preencha os campos e clique em Rodar.")
 ttk.Label(frm, textvariable=status, foreground="#555",
           wraplength=430).grid(row=linha, column=0, sticky="w", pady=(8, 0))
+
+CINZA = "#999999"
+PRETO = "#000000"
+
+
+def atualizar_campos_do_site(*_):
+    """Cada site aceita filtros diferentes: o que o site escolhido nao usa
+    fica desabilitado, em vez de dar a impressao de que sera aplicado.
+    - Facebook: filtra por CEP + raio em km; nao tem ano/km/cambio.
+    - OLX: filtra por estado (derivado do CEP) e tem ano/km/cambio.
+    """
+    olx = cmb_site.get() == "OLX"
+
+    for entrada in (ent_ano_min, ent_ano_max, ent_km_max):
+        entrada.configure(state="normal" if olx else "disabled")
+    cmb_cambio.configure(state="readonly" if olx else "disabled")
+    cmb_raio.configure(state="disabled" if olx else "readonly")
+
+    lbl_raio.configure(
+        text="Raio (km) - a OLX nao usa raio" if olx else "Raio (km)",
+        foreground=CINZA if olx else PRETO)
+    for rotulo, texto in ((lbl_extras, "Filtros extras"),
+                          (lbl_cambio, "Cambio")):
+        rotulo.configure(
+            text=texto if olx else f"{texto} - somente OLX",
+            foreground=PRETO if olx else CINZA)
+    lbl_site_dica.configure(text=(
+        "OLX: a regiao vem do estado do CEP (a OLX nao tem raio em km) e o "
+        "chat exige login. Rode poucos anuncios por vez: a OLX bloqueia "
+        "navegacao automatizada insistente." if olx else
+        "Facebook: filtra por CEP + raio em km."))
+
+
+cmb_site.bind("<<ComboboxSelected>>", atualizar_campos_do_site)
+atualizar_campos_do_site()   # estado inicial (Facebook)
 
 frm.columnconfigure(0, weight=1)
 drenar_log()      # inicia o polling do log

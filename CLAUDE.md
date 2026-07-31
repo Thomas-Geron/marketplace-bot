@@ -84,8 +84,17 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   km), com fallback para busca nacional. A OLX **bloqueia** navegação
   automatizada insistente (Cloudflare): o bot detecta e para com aviso —
   nunca tentar contornar; rodar menos anúncios por vez.
-- Interface da Compra tem filtros extras só da OLX (ano de/até, km até,
-  câmbio); o Facebook ignora esses campos.
+- Interface da Compra habilita por site o que cada um aceita: Facebook =
+  CEP + raio em km; OLX = ano de/até, km até e câmbio (e raio some, pois
+  a OLX regionaliza por estado). O gating é do `<<ComboboxSelected>>` em
+  interface_bot.py.
+- **Compra/Facebook verificada ao vivo** (jul/2026): os 8 seletores do
+  config.py conferem (busca, cards, Localização, campo de cidade, raio,
+  Aplicar, preço mín/máx) — não foi preciso mudar nada.
+- **Chat da OLX ainda não capturado**: o Cloudflare bloqueou as
+  tentativas de recon (bloqueio dura horas e é por IP/fingerprint). Os
+  seletores do chat são candidatos; a primeira rodada real (com login e
+  poucos anúncios) grava as capturas em `debug/olx-compra` para fechar.
 - Verificar se os inserts do site do Thomas gravam `user_id` (senão o
   veículo novo não aparece no bot do dono).
 - Release **v1.1.0** (modo Venda) só depois da calibração.
