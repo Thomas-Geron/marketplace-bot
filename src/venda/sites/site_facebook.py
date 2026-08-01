@@ -12,6 +12,7 @@ capturas reais da interface pt-BR (jul/2026):
 - Quilometragem, Cor, Combustível e Câmbio só entram no DOM depois que o
   Tipo de veículo é selecionado.
 """
+import re
 import time
 import unicodedata
 
@@ -45,6 +46,38 @@ COMBUSTIVEL_FB = {
     "etanol": ["Outra", "Outro"],
     "gnv": ["Outra", "Outro"],
 }
+
+
+# "Estilo da carroceria" é OBRIGATÓRIO no Facebook (sem ele o botão de
+# publicar não libera) e não existe no banco. A carroceria quase sempre está
+# escrita no modelo/versão ("ONIX HATCH LTZ", "PRISMA SEDAN 1.4"), então é de
+# lá que ela sai. Casamento por palavra inteira: siglas soltas dentro de
+# outra palavra já trocaram fabricante uma vez.
+_CARROCERIA = (
+    (r"\b(hatchback|hatch|hb)\b", "Hatch"),
+    (r"\b(sedan|seda)\b", "Sedã"),
+    (r"\b(suv)\b", "SUV"),
+    (r"\b(picape|pickup|pick-up)\b", "Picape"),
+    (r"\b(station|sw|perua|variant|avant|touring|estate)\b", "Station wagon"),
+    (r"\b(minivan|monovolume|van)\b", "Minivan"),
+    (r"\b(cupe|coupe)\b", "Cupê"),
+    (r"\b(conversivel|cabrio|cabriolet|roadster|spider|spyder)\b",
+     "Conversível"),
+    (r"\b(compacto)\b", "Carro compacto"),
+)
+
+
+def estilo_carroceria(veiculo):
+    """Estilo da carroceria deduzido do modelo/versão do veículo.
+    Devolve (rótulo do Facebook, deduzido?) — quando não dá para saber,
+    usa "Outro" em vez de chutar uma carroceria específica."""
+    texto = _chave(" ".join(
+        str(v) for v in (veiculo.get("modelo"), veiculo.get("versao"),
+                         veiculo.get("titulo")) if v))
+    for padrao, rotulo in _CARROCERIA:
+        if re.search(padrao, texto):
+            return rotulo, True
+    return "Outro", False
 
 
 def _opcoes_marca(marca):
@@ -225,6 +258,16 @@ class SiteFacebook(SiteAdapter):
             'input[aria-label="Preço"]',
             'role=textbox[name="Preço"]',
         ], veiculo.get("preco"), "Preço")
+
+        # obrigatório: sem ele o Facebook não libera o botão de publicar
+        estilo, deduzido = estilo_carroceria(veiculo)
+        if not deduzido:
+            print("  ! Estilo da carroceria não aparece no modelo/versão — "
+                  "usando 'Outro' (troque na janela se quiser outro)")
+        if not _selecionar_combobox(pagina, ["Estilo da carroceria"], [estilo],
+                                    "Estilo da carroceria"):
+            print("  ! sem o Estilo da carroceria o Facebook NÃO libera o "
+                  "botão de publicar — escolha na janela")
 
         cor = veiculo.get("cor")
         if cor:
