@@ -33,8 +33,11 @@ mesmo processo.
   o banco. Publishable key é pública por design (RLS protege); **nunca**
   commitar service_role key.
 - Schema: `veiculos(id, ano, km, cor, placa, combustivel, cambio, portas,
-  versao, preco_anunciado, valor_venda, valor_compra, opcionais, status,
-  user_id, marca_id→marcas(nome), modelo_id→modelos(nome))` + `fotos(veiculo_id, url)`.
+  versao, carroceria, preco_anunciado, valor_venda, valor_compra, opcionais,
+  status, user_id, marca_id→marcas(nome), modelo_id→modelos(nome))` +
+  `fotos(veiculo_id, url)`. Na dúvida sobre uma coluna, confirme no banco:
+  `GET /rest/v1/veiculos?select=<coluna>&limit=1` responde 400 com o nome
+  exato quando a coluna não existe (a RLS só esconde as linhas).
 - Preço anunciado = `preco_anunciado` (campo "PREÇO ANUNCIADO" do site do
   Thomas), fallback `valor_venda`; aceita texto em formato BR.
 - Modelo de acesso: **RLS por dono** (`auth.uid() = user_id`) + o bot filtra
@@ -75,11 +78,12 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 - **Facebook (Venda) calibrado** (jul/2026) com capturas reais: campos
   estruturados preenchidos (tipo "Carro/picape", ano, fabricante, km,
   cor, combustível, câmbio, estilo da carroceria). **Estilo da carroceria
-  é obrigatório** (sem ele o botão de publicar não libera) e não existe no
-  banco: é deduzido do modelo/versão ("ONIX HATCH" → Hatch) por palavra
-  inteira, com "Outro" quando não dá para saber. Cor interna e Condição do
-  veículo seguem manuais — inventá-las seria afirmar algo sobre o veículo
-  que o banco não diz.
+  é obrigatório** (sem ele o botão de publicar não libera): vem do campo
+  `carroceria` do banco, traduzido para o rótulo do Facebook (Perua →
+  Station wagon, Crossover → SUV); sem valor no banco, é deduzido do
+  modelo/versão por palavra inteira e, em último caso, "Outro". Cor interna
+  e Condição do veículo seguem manuais — inventá-las seria afirmar algo
+  sobre o veículo que o banco não diz.
 - **Kavak calibrada** (jul/2026): funil na própria home, em cascata
   Ano → Marca → Modelo (`aui-select`, opções `button.option`), botão
   `button[aria-label="Fazer cotação"]`; não há atalho por placa.

@@ -49,10 +49,27 @@ COMBUSTIVEL_FB = {
 
 
 # "Estilo da carroceria" é OBRIGATÓRIO no Facebook (sem ele o botão de
-# publicar não libera) e não existe no banco. A carroceria quase sempre está
-# escrita no modelo/versão ("ONIX HATCH LTZ", "PRISMA SEDAN 1.4"), então é de
-# lá que ela sai. Casamento por palavra inteira: siglas soltas dentro de
-# outra palavra já trocaram fabricante uma vez.
+# publicar não libera). O valor vem do campo `carroceria` do banco; o nome
+# usado lá nem sempre é o do Facebook ("Perua" → "Station wagon"), daí a
+# tradução abaixo (chaves já normalizadas por _chave: sem acento, minúsculas).
+CARROCERIA_FB = {
+    "hatch": "Hatch", "hatchback": "Hatch",
+    "sedan": "Sedã", "seda": "Sedã",
+    "suv": "SUV", "utilitario esportivo": "SUV", "crossover": "SUV",
+    "picape": "Picape", "pickup": "Picape", "pick-up": "Picape",
+    "caminhonete": "Picape",
+    "perua": "Station wagon", "station wagon": "Station wagon",
+    "wagon": "Station wagon", "sw": "Station wagon",
+    "minivan": "Minivan", "van": "Minivan", "monovolume": "Minivan",
+    "cupe": "Cupê", "coupe": "Cupê",
+    "conversivel": "Conversível", "cabriolet": "Conversível",
+    "cabrio": "Conversível", "roadster": "Conversível",
+    "compacto": "Carro compacto", "carro compacto": "Carro compacto",
+}
+
+# reserva: quando o banco não traz a carroceria, ela quase sempre está escrita
+# no modelo/versão ("ONIX HATCH LTZ"). Casamento por palavra inteira: sigla
+# solta dentro de outra palavra já trocou o fabricante por GMC uma vez.
 _CARROCERIA = (
     (r"\b(hatchback|hatch|hb)\b", "Hatch"),
     (r"\b(sedan|seda)\b", "Sedã"),
@@ -67,17 +84,44 @@ _CARROCERIA = (
 )
 
 
-def estilo_carroceria(veiculo):
-    """Estilo da carroceria deduzido do modelo/versão do veículo.
-    Devolve (rótulo do Facebook, deduzido?) — quando não dá para saber,
-    usa "Outro" em vez de chutar uma carroceria específica."""
+def _carroceria_do_texto(veiculo):
+    """Carroceria escrita no modelo/versão, ou None."""
     texto = _chave(" ".join(
         str(v) for v in (veiculo.get("modelo"), veiculo.get("versao"),
                          veiculo.get("titulo")) if v))
     for padrao, rotulo in _CARROCERIA:
         if re.search(padrao, texto):
-            return rotulo, True
-    return "Outro", False
+            return rotulo
+    return None
+
+
+def opcoes_carroceria(veiculo):
+    """Candidatos para "Estilo da carroceria", do mais confiável ao menos:
+    o campo `carroceria` do banco (traduzido para o rótulo do Facebook e
+    também cru, caso o site use o mesmo nome), depois o que estiver escrito
+    no modelo/versão e, por último, "Outro" — o campo é obrigatório, então
+    ficar sem resposta significaria não conseguir publicar.
+
+    Devolve (candidatos, origem) para o log dizer de onde veio o valor.
+    """
+    candidatos = []
+    bruto = str(veiculo.get("carroceria") or "").strip()
+    if bruto:
+        traduzido = CARROCERIA_FB.get(_chave(bruto))
+        if traduzido:
+            candidatos.append(traduzido)
+        candidatos.append(bruto)
+        origem = "banco"
+    else:
+        origem = None
+
+    do_texto = _carroceria_do_texto(veiculo)
+    if do_texto:
+        candidatos.append(do_texto)
+        origem = origem or "modelo/versão"
+
+    candidatos.append("Outro")
+    return list(dict.fromkeys(candidatos)), origem or "padrão"
 
 
 def _opcoes_marca(marca):
@@ -260,12 +304,14 @@ class SiteFacebook(SiteAdapter):
         ], veiculo.get("preco"), "Preço")
 
         # obrigatório: sem ele o Facebook não libera o botão de publicar
-        estilo, deduzido = estilo_carroceria(veiculo)
-        if not deduzido:
-            print("  ! Estilo da carroceria não aparece no modelo/versão — "
-                  "usando 'Outro' (troque na janela se quiser outro)")
-        if not _selecionar_combobox(pagina, ["Estilo da carroceria"], [estilo],
-                                    "Estilo da carroceria"):
+        carrocerias, origem = opcoes_carroceria(veiculo)
+        if origem == "padrão":
+            print("  ! carroceria ausente no banco e no modelo/versão — "
+                  "usando 'Outro' (troque na janela se quiser)")
+        else:
+            print(f"  Estilo da carroceria: '{carrocerias[0]}' (do {origem})")
+        if not _selecionar_combobox(pagina, ["Estilo da carroceria"],
+                                    carrocerias, "Estilo da carroceria"):
             print("  ! sem o Estilo da carroceria o Facebook NÃO libera o "
                   "botão de publicar — escolha na janela")
 
