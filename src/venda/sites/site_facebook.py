@@ -47,6 +47,24 @@ COMBUSTIVEL_FB = {
 }
 
 
+def _opcoes_marca(marca):
+    """Rótulos candidatos para o Fabricante, do mais específico ao menos.
+
+    O banco guarda a marca no padrão FIPE ("GM - Chevrolet", "VW - VolksWagen")
+    e o Facebook usa só o nome comercial ("Chevrolet", "Volkswagen"): o nome
+    depois do hífen vem PRIMEIRO. A sigla sozinha nunca entra — "GM" casaria
+    com "GMC".
+    """
+    texto = str(marca or "").strip()
+    if not texto:
+        return []
+    candidatos = []
+    if " - " in texto:
+        candidatos.append(texto.split(" - ", 1)[1].strip())
+    candidatos.append(texto)
+    return list(dict.fromkeys(c for c in candidatos if c))
+
+
 def _opcoes_cambio(valor):
     """Rótulos candidatos no FB para o câmbio do banco (None se não mapear)."""
     chave = _chave(valor)
@@ -57,10 +75,44 @@ def _opcoes_cambio(valor):
     return None
 
 
+# tamanho mínimo para aceitar casamento por prefixo: sem isso "GM" casaria
+# com "GMC" e o anúncio sairia com o fabricante errado
+_MIN_PREFIXO = 5
+
+_JS_OPCOES = r"""
+() => [...document.querySelectorAll('[role="option"],[role="menuitem"]')]
+  .map(e => (e.innerText || '').replace(/\s+/g, ' ').trim())
+  .filter(Boolean)
+"""
+
+
+def _casar_opcao(opcoes, rotulos_opcao):
+    """Escolhe, entre as opções REAIS do dropdown, a que corresponde ao valor
+    do banco. Compara sem acento/caixa e só aceita prefixo em textos longos —
+    casar por pedaço curto já trocou 'GM - Chevrolet' por 'GMC'."""
+    por_chave = {}
+    for opcao in opcoes:
+        por_chave.setdefault(_chave(opcao), opcao)
+
+    for rotulo in rotulos_opcao:
+        chave = _chave(rotulo)
+        if chave in por_chave:                       # igual (ignorando acento)
+            return por_chave[chave]
+
+    for rotulo in rotulos_opcao:
+        chave = _chave(rotulo)
+        if len(chave) < _MIN_PREFIXO:
+            continue
+        for chave_opcao, original in por_chave.items():
+            if chave_opcao.startswith(chave):        # "Carro" -> "Carro/picape"
+                return original
+    return None
+
+
 def _selecionar_combobox(pagina, rotulos_campo, rotulos_opcao, nome_campo):
-    """Abre um combobox do formulário e clica na primeira opção candidata.
-    Se a opção não aparecer, salva um diagnóstico com o dropdown ABERTO
-    (para calibrar os rótulos reais) e fecha com Escape. Retorna True/False."""
+    """Abre um combobox do formulário, escolhe a opção equivalente ao valor do
+    banco e confirma o que ficou selecionado. Se nada casar, salva um
+    diagnóstico com o dropdown ABERTO e fecha com Escape. Retorna True/False."""
     candidatos_campo = []
     for rotulo in rotulos_campo:
         candidatos_campo.append(f'role=combobox[name="{rotulo}"]')
@@ -70,21 +122,31 @@ def _selecionar_combobox(pagina, rotulos_campo, rotulos_opcao, nome_campo):
         candidatos_campo.append(f'label[role="combobox"][aria-label="{rotulo}"]')
     if not clicar(pagina, candidatos_campo, f"abrir '{nome_campo}'"):
         return False
-    pagina.wait_for_timeout(600)
-    candidatos_opcao = []
-    for opcao in rotulos_opcao:
-        candidatos_opcao.append(f'[role="option"]:text-is("{opcao}")')
-    for opcao in rotulos_opcao:
-        candidatos_opcao.append(f'[role="option"]:has-text("{opcao}")')
-    for opcao in rotulos_opcao:
-        candidatos_opcao.append(f'[role="menuitem"]:has-text("{opcao}")')
-    for opcao in rotulos_opcao:
-        candidatos_opcao.append(f'li:has-text("{opcao}")')
-    for opcao in rotulos_opcao:
-        candidatos_opcao.append(f'span:text-is("{opcao}")')
-    if clicar(pagina, candidatos_opcao, f"{nome_campo}: '{rotulos_opcao[0]}'"):
-        pagina.wait_for_timeout(600)
-        return True
+    pagina.wait_for_timeout(800)
+
+    try:
+        opcoes = pagina.evaluate(_JS_OPCOES)
+    except Exception:
+        opcoes = []
+    escolhida = _casar_opcao(opcoes, rotulos_opcao)
+
+    if escolhida:
+        # o log mostra o que foi REALMENTE escolhido, não o que se pretendia
+        if clicar(pagina, [
+            f'[role="option"]:text-is("{escolhida}")',
+            f'[role="menuitem"]:text-is("{escolhida}")',
+            f'[role="option"]:has-text("{escolhida}")',
+        ], f"{nome_campo}: '{escolhida}'"):
+            if _chave(escolhida) != _chave(rotulos_opcao[0]):
+                print(f"    (banco dizia '{rotulos_opcao[0]}' — o Facebook "
+                      f"chama de '{escolhida}')")
+            pagina.wait_for_timeout(600)
+            return True
+    else:
+        print(f"  ! {nome_campo}: '{rotulos_opcao[0]}' não existe na lista do "
+              f"Facebook ({len(opcoes)} opções) — deixando em branco para você "
+              "escolher")
+
     # captura com o dropdown aberto: o diagnóstico lista as opções reais
     momento = "opcoes-" + _chave(nome_campo).replace(" ", "-")
     dump_diagnostico(pagina, "facebook", momento)
@@ -134,7 +196,7 @@ class SiteFacebook(SiteAdapter):
         # na variante antiga do formulário era campo de texto — tenta os dois
         marca = str(veiculo.get("marca") or "").strip()
         if marca:
-            opcoes_marca = list(dict.fromkeys([marca, marca.split()[0]]))
+            opcoes_marca = _opcoes_marca(marca)
             if not _selecionar_combobox(
                     pagina, ["Fabricante"], opcoes_marca, "Fabricante"):
                 preencher_campo(pagina, [
