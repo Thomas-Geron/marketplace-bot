@@ -87,6 +87,10 @@ def _executar():
         from compra_icarros import executar
         executar(p)
         return
+    if site == "webmotors":
+        from compra_webmotors import executar
+        executar(p)
+        return
 
     with sync_playwright() as pw:
         contexto, pagina = abrir_navegador(pw)

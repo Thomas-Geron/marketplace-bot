@@ -28,7 +28,7 @@ a = Analysis(
     datas=pw_datas + [(ASSETS, "assets")],
     # as fontes de Compra são importadas dentro de run.main() (import tardio):
     # declaradas aqui para não dependerem da análise estática do PyInstaller
-    hiddenimports=pw_hidden + ["compra_olx", "compra_icarros"],
+    hiddenimports=pw_hidden + ["compra_olx", "compra_icarros", "compra_webmotors"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

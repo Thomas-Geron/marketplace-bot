@@ -90,6 +90,47 @@ def detectar_barreira(pagina):
     return None
 
 
+# desafio "Pressione e segure" (Akamai/PerimeterX, usado pela Webmotors):
+# é resolvido por VOCÊ na janela — o bot só reconhece, espera e confere
+_DESAFIO_HUMANO = (
+    "press & hold",
+    "press and hold",
+    "pressione e segure",
+    "access to this page has been denied",
+    "acesso a esta página foi negado",
+)
+
+
+def desafio_humano(pagina):
+    """True se a página é um desafio de 'pressione e segure'."""
+    try:
+        corpo = (pagina.locator("body").inner_text(timeout=5000) or "").lower()
+    except Exception:
+        return False
+    return any(marca in corpo for marca in _DESAFIO_HUMANO)
+
+
+def esperar_desafio_humano(pagina, minutos=5, passo=3):
+    """Pausa até VOCÊ concluir o 'Pressione e segure' na janela aberta.
+
+    O bot não resolve nem contorna o desafio: ele reconhece, avisa, espera
+    a página deixar de ser o desafio e então segue. Retorna True se
+    liberou dentro do tempo.
+    """
+    if not desafio_humano(pagina):
+        return True
+    print("  ! Verificação 'Pressione e segure' na tela.")
+    print("    RESOLVA na janela do navegador — o bot está esperando e "
+          f"continua sozinho assim que passar (limite: {minutos} min).")
+    for gasto in range(0, minutos * 60, passo):
+        pagina.wait_for_timeout(passo * 1000)
+        if not desafio_humano(pagina):
+            print(f"  OK verificação concluída em ~{gasto + passo}s — seguindo.")
+            return True
+    print(f"  ! verificação não concluída em {minutos} min — parando por aqui.")
+    return False
+
+
 def tentar_login(pagina, site_id):
     """Preenche a tela de login do site com as credenciais que o usuário
     digitou na interface (memória do processo, nunca disco).

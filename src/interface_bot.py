@@ -36,6 +36,7 @@ CAMINHO_PARAMS = str(get_parametros_path())
 SITES_COMPRA = [
     ("Facebook Marketplace", "facebook"),
     ("iCarros", "icarros"),
+    ("Webmotors", "webmotors"),
 ]
 
 CINZA = "#999999"
@@ -63,7 +64,8 @@ def estados_por_site(site):
         "extras": "normal" if olx else "disabled",
         "cambio": "readonly" if olx else "disabled",
         "raio": "disabled" if (olx or icarros) else "readonly",
-        "contato": "normal" if icarros else "disabled",
+        "contato": "normal" if site in ("icarros", "webmotors")
+                   else "disabled",
     }
 
 
@@ -362,6 +364,11 @@ def iniciar():
                     "'chevrolet onix'). Nao exige login, mas o formulario do "
                     "anuncio manda seu nome/e-mail/telefone ao vendedor. A "
                     "regiao vem do estado do CEP e o preco e filtrado pelo bot.")
+        elif site == "webmotors":
+            dica = ("Webmotors: o formulario do anuncio manda seu "
+                    "nome/e-mail/telefone ao vendedor. Nao filtra por regiao "
+                    "nesta versao e pode pedir 'Pressione e segure' — o bot "
+                    "espera voce resolver na janela.")
         else:
             dica = "Facebook: filtra por CEP + raio em km."
         lbl_site_dica.configure(text=dica)

@@ -49,13 +49,14 @@ mesmo processo.
 
 Adaptadores plugáveis (1 arquivo por site + registro no `__init__.py`):
 `facebook` (form /marketplace/create/vehicle), `icarros` (PAGO — pagamento
-manual), `mobiauto`, `napista` (conta de loja), `kavak` (funil de COTAÇÃO,
-não é classificado) e `demo` (formulário local em assets/ para testes).
+manual), `mobiauto`, `napista` (conta de loja), `webmotors` (form atrás de
+login), `kavak` (funil de COTAÇÃO, não é classificado) e `demo` (formulário
+local em assets/ para testes).
 Site sem formulário calibrado ponta a ponta leva `disponivel = False` +
 `motivo_indisponivel`: a interface o mostra cinza com "Em breve" e o
 anunciador o ignora mesmo vindo de um parametros_venda.json antigo. Ao
-calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista
-e Kavak estão em "Em breve").
+calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista,
+Webmotors e Kavak estão em "Em breve").
 
 Dados sensíveis (nome, CPF, telefone, e-mail e usuário/senha por site) são
 digitados na interface e passados ao processo do bot em **variáveis de
@@ -110,8 +111,24 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   nunca tentar contornar; rodar menos anúncios por vez.
 - Fontes de Compra vivem em `SITES_COMPRA` (interface_bot.py) e são
   despachadas por `site` no run.py: `facebook` (run.py), `icarros`
-  (compra_icarros.py) e `olx` (compra_olx.py, **fora da lista** por
-  decisão do usuário — Cloudflare; para voltar, reincluir na lista).
+  (compra_icarros.py), `webmotors` (compra_webmotors.py) e `olx`
+  (compra_olx.py, **fora da lista** por decisão do usuário — Cloudflare;
+  para voltar, reincluir na lista).
+- **Webmotors** (ago/2026): na **Compra** está calibrada — busca
+  `/carros/estoque/<marca>[/<modelo>]`, anúncio
+  `/comprar/.../<id>` e formulário "Envie uma mensagem ao vendedor"
+  (`#ButtonSendProposal`); os seletores são escopados por
+  `form:has(textarea[name="message"])` porque a página tem OUTRO form, o de
+  financiamento, que pede CPF. Preço é filtrado pelo bot (lido do card) e
+  não há filtro de região nesta versão. Na **Venda** o form fica atrás do
+  login (`/vender-carro` → "Criar meu anúncio" → `/login`), então o site
+  está em "Em breve".
+- **Desafio "Pressione e segure"** (Akamai/PerimeterX, Webmotors):
+  `esperar_desafio_humano` (base.py) reconhece, deixa a janela aberta e
+  espera o usuário resolver — o bot nunca tenta contornar. Descoberta útil
+  da calibração: o desafio some quando o navegador é aberto NORMALMENTE
+  (Brave iniciado à parte + `connect_over_cdp`, `navigator.webdriver=False`)
+  e aparece quando o Playwright dá `launch()` no Chrome.
 - **iCarros como fonte de Compra** (jul/2026, calibrado ao vivo): o
   anúncio tem formulário próprio (nome/e-mail/telefone/observações +
   "Enviar mensagem") e **não exige login** — por isso entrou. Detalhes
