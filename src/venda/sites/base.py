@@ -186,6 +186,33 @@ def _preencher_senha(pagina, senha):
     return False
 
 
+def digitar(pagina, candidatos, valor, nome_campo, atraso=120):
+    """Digita tecla a tecla, em vez de `fill`.
+
+    Formulários React (Webmotors) só validam o campo e habilitam o botão
+    seguinte quando recebem os eventos reais de digitação: com `fill` o
+    valor aparece na tela mas o "Continuar" continua desabilitado.
+    """
+    if valor is None or str(valor).strip() == "":
+        return False
+    ultimo_erro = None
+    for sel in candidatos:
+        try:
+            loc = pagina.locator(sel).first
+            if loc.count() == 0 or not loc.is_visible():
+                continue
+            loc.click()
+            loc.fill("")
+            pagina.keyboard.type(str(valor), delay=atraso)
+            print(f"  OK {nome_campo}: digitado")
+            return True
+        except Exception as exc:
+            ultimo_erro = exc
+            continue
+    print(f"  ! {nome_campo}: campo não encontrado{_detalhe_erro(ultimo_erro)}")
+    return False
+
+
 def _detalhe_erro(exc):
     """Resumo de 1 linha da última exceção, para o log de falha."""
     if exc is None:

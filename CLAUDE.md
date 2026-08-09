@@ -124,10 +124,15 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   `/login`; **logado** (ago/2026) `/vender-carro` vai direto para
   `/vender-carro/especificacoes`, cuja etapa 1 é a PLACA
   (`[data-qa="placaInput"]` + `[data-qa="btnContinuarEspec"]`) — o site puxa
-  marca/modelo/versão dela, então veículo sem `placa` não dá para anunciar
-  lá. As etapas seguintes ainda precisam de uma placa real para mapear
-  (o adaptador grava `debug/webmotors/apos-placa`), por isso segue em
-  "Em breve".
+  marca/modelo/versão dela. Calibrado com placa real: `fill()` NÃO funciona
+  (o React só habilita o "Continuar" com eventos de digitação — usar
+  `digitar()` de base.py); depois da consulta o site exige escolher a
+  VERSÃO (`[data-qa="variable-select"]`); e existe o caminho alternativo
+  `[data-qa="btnNaoPossuiPlaca"]`, que abre Marca/Modelo/Ano do Modelo/Ano
+  de Fabricação/Versão/Cor — tudo que o bot já tem no banco, sem depender
+  da consulta de placa (que falha quando repetida). **A Webmotors é PAGA**:
+  a 3ª fase do assistente é plano + pagamento, e `publicar()` para antes
+  dela de propósito. Etapas 2 e 3 ainda não mapeadas → segue "Em breve".
 - **Desafio "Pressione e segure"** (Akamai/PerimeterX, Webmotors):
   `esperar_desafio_humano` (base.py) reconhece, deixa a janela aberta e
   espera o usuário resolver — o bot nunca tenta contornar. Descoberta útil
