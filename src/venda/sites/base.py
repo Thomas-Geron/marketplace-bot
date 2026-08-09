@@ -19,6 +19,7 @@ from pathlib import Path
 
 import requests
 
+import contato
 from paths import get_data_dir
 
 
@@ -87,6 +88,61 @@ def detectar_barreira(pagina):
         if marca in corpo:
             return motivo
     return None
+
+
+def tentar_login(pagina, site_id):
+    """Preenche a tela de login do site com as credenciais que o usuário
+    digitou na interface (memória do processo, nunca disco).
+
+    Não substitui o login manual: sites com 2FA, captcha ou fluxo em duas
+    etapas continuam exigindo você na janela. Retorna True se o formulário
+    foi enviado e a barreira sumiu.
+    """
+    acesso = contato.login_do_ambiente(site_id)
+    if not acesso:
+        return False
+
+    print(f"  tentando login em {site_id} como "
+          f"{contato.mascarar(acesso['usuario'])}")
+    usuario_ok = preencher_campo(pagina, [
+        'input[name="username"]', 'input[name="email"]',
+        'input[type="email"]', 'input[id*="user" i]',
+        'input[id*="email" i]',
+    ], acesso["usuario"], "usuário")
+    senha_ok = _preencher_senha(pagina, acesso["senha"])
+    if not (usuario_ok and senha_ok):
+        print("  ! campos de login não encontrados — faça o login na janela")
+        return False
+
+    clicar(pagina, [
+        'button[type="submit"]', 'input[type="submit"]',
+        'button:has-text("Entrar")', 'button:has-text("Acessar")',
+        'button:has-text("Continuar")',
+    ], "enviar login")
+    pagina.wait_for_timeout(6000)
+
+    if detectar_barreira(pagina):
+        print("  ! ainda na tela de login (2FA, captcha ou dados incorretos) "
+              "— conclua na janela e clique em 'Prosseguir'")
+        return False
+    print("  OK login aceito")
+    return True
+
+
+def _preencher_senha(pagina, senha):
+    """Igual a preencher_campo, mas sem NADA da senha no log."""
+    for sel in ('input[name="password"]', 'input[type="password"]',
+                'input[id*="senha" i]'):
+        try:
+            loc = pagina.locator(sel).first
+            if loc.count() == 0 or not loc.is_visible():
+                continue
+            loc.fill(str(senha))
+            print("  OK senha: preenchida")
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def _detalhe_erro(exc):
@@ -298,6 +354,10 @@ class SiteAdapter:
     # antigo. Ao calibrar, basta voltar para True.
     disponivel = True
     motivo_indisponivel = ""
+    # True quando o site esconde o formulário atrás de login: a interface
+    # oferece campos de usuário/senha (guardados só em memória) e o
+    # adaptador chama tentar_login antes de desistir
+    exige_login = False
 
     def abrir_novo_anuncio(self, pagina):
         """Navega até o formulário de novo anúncio, pronto para preencher."""

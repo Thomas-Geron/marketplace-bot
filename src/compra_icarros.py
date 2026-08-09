@@ -163,11 +163,16 @@ def enviar_mensagem_icarros(pagina, p, dry_run):
     preencher_campo(pagina, ["textarea#texto", 'textarea[name="texto"]',
                              "textarea"], p.mensagem, "Mensagem")
 
-    # alguns anúncios pedem CPF; o bot não guarda esse dado
+    # alguns anúncios pedem CPF: usa o que veio da interface (memória do
+    # processo, nunca disco) ou avisa para você completar na janela
     try:
         if pagina.locator("input#cpf").first.is_visible():
-            print("  ! este anúncio pede CPF — preencha na janela antes de "
-                  "enviar (o bot não guarda CPF)")
+            if getattr(p, "cpf_contato", ""):
+                preencher_campo(pagina, ["input#cpf", 'input[name="cpf"]'],
+                                p.cpf_contato, "CPF")
+            else:
+                print("  ! este anúncio pede CPF — preencha o campo CPF na "
+                      "interface ou complete na janela")
     except Exception:
         pass
     time.sleep(2)  # tempo para conferir no navegador

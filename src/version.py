@@ -5,4 +5,4 @@ Para publicar uma nova versão, edite APENAS este arquivo e crie a tag
 correspondente (vX.Y.Z). O CI valida que a tag bate com esta versão e o
 Inno Setup a recebe via /DMyAppVersion.
 """
-__version__ = "1.2.3"
+__version__ = "1.3.0"

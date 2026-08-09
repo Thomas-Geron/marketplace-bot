@@ -11,7 +11,8 @@ import time
 
 from venda.sites.base import (
     SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
-    detectar_barreira, esperar_formulario, fechar_cookies)
+    detectar_barreira, esperar_formulario, fechar_cookies,
+    tentar_login)
 
 
 class SiteNaPista(SiteAdapter):
@@ -19,6 +20,7 @@ class SiteNaPista(SiteAdapter):
     nome = "NaPista"
     url_home = "https://napista.com.br/loja"
     disponivel = False
+    exige_login = True
     motivo_indisponivel = "exige conta de lojista logada"
 
     def abrir_novo_anuncio(self, pagina):
@@ -29,7 +31,7 @@ class SiteNaPista(SiteAdapter):
         # /loja redireciona para auth.napista.com.br quando não há sessão:
         # sem conta de lojista logada não existe formulário para preencher
         barreira = detectar_barreira(pagina)
-        if barreira:
+        if barreira and not tentar_login(pagina, self.id):
             print(f"  ! NaPista caiu em {barreira}: faça login como lojista "
                   "nesta aba e rode de novo.")
             return

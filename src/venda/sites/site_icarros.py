@@ -11,7 +11,8 @@ import time
 
 from venda.sites.base import (
     SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
-    detectar_barreira, esperar_formulario, fechar_cookies)
+    detectar_barreira, esperar_formulario, fechar_cookies,
+    tentar_login)
 
 
 class SiteICarros(SiteAdapter):
@@ -20,6 +21,7 @@ class SiteICarros(SiteAdapter):
     url_home = "https://www.icarros.com.br/"
     disponivel = False
     motivo_indisponivel = "formulário exige login e o anúncio é pago"
+    exige_login = True
 
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.icarros.com.br/vender")
@@ -38,9 +40,9 @@ class SiteICarros(SiteAdapter):
     def preencher(self, pagina, veiculo):
         dump_diagnostico(pagina, self.id, "inicio")
         barreira = detectar_barreira(pagina)
-        if barreira:
+        if barreira and not tentar_login(pagina, self.id):
             print(f"  ! iCarros caiu em {barreira}: faça login nesta aba e "
-                  "rode de novo — o bot nunca faz login sozinho.")
+                  "clique em 'Prosseguir'.")
             return
         # o fluxo costuma começar pela placa (busca os dados do veículo)
         preencher_campo(pagina, [

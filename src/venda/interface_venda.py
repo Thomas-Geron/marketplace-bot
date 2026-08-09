@@ -16,6 +16,7 @@ from tkinter import ttk
 
 from paths import get_parametros_venda_path, get_venda_command
 from sinal import dar_sinal, limpar_sinal
+import contato
 from venda import anunciados
 from venda.banco import BancoVeiculos
 from venda.config_venda import modo_demo
@@ -113,6 +114,7 @@ def iniciar():
         lbl_conta.grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
         frm_veic.pack(fill="both", expand=True, pady=(10, 0))
         frm_sites.pack(fill="x", pady=(10, 0))
+        frm_dados.pack(fill="x", pady=(10, 0))
         frm_acoes.pack(fill="x", pady=(10, 0))
         carregar_veiculos()
 
@@ -156,6 +158,47 @@ def iniciar():
         foreground="#555",
     ).pack(anchor="w", pady=(6, 0))
 
+    # ============ dados sensíveis: usados na hora, nunca salvos ============
+    frm_dados = ttk.LabelFrame(
+        frm, text="Seus dados e logins — usados nesta execução e descartados",
+        padding=10)
+
+    ttk.Label(
+        frm_dados,
+        text="Nada aqui é gravado em disco: vai só para o processo do bot e "
+             "some quando ele termina. Sites com 2FA ou captcha continuam "
+             "exigindo você na janela.",
+        foreground="#b26a00", wraplength=500,
+    ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+
+    campos_pessoais = {}
+    for coluna, (campo, rotulo) in enumerate(
+            (("nome", "Nome"), ("cpf", "CPF"),
+             ("telefone", "Telefone"), ("email", "E-mail"))):
+        ttk.Label(frm_dados, text=rotulo).grid(
+            row=1, column=coluna, sticky="w", padx=(0, 4))
+        entrada = ttk.Entry(frm_dados, width=16)
+        entrada.grid(row=2, column=coluna, sticky="we", padx=(0, 8))
+        campos_pessoais[campo] = entrada
+
+    campos_login = {}
+    proxima_linha = 3
+    for site in listar_sites():
+        if not getattr(site, "exige_login", False):
+            continue
+        ttk.Label(frm_dados, text=f"{site.nome} — usuário / senha").grid(
+            row=proxima_linha, column=0, columnspan=4, sticky="w",
+            pady=(8, 0))
+        usuario = ttk.Entry(frm_dados, width=24)
+        usuario.grid(row=proxima_linha + 1, column=0, columnspan=2,
+                     sticky="we", padx=(0, 8))
+        senha = ttk.Entry(frm_dados, width=20, show="•")
+        senha.grid(row=proxima_linha + 1, column=2, columnspan=2, sticky="we")
+        campos_login[site.id] = {"usuario": usuario, "senha": senha}
+        proxima_linha += 2
+    for coluna in range(4):
+        frm_dados.columnconfigure(coluna, weight=1)
+
     # ====================== ações + log ============================
     frm_acoes = ttk.Frame(frm)
 
@@ -198,12 +241,22 @@ def iniciar():
         with open(get_parametros_venda_path(), "w", encoding="utf-8") as f:
             json.dump(params, f, ensure_ascii=False, indent=2)
 
+        # dados sensíveis NÃO entram no JSON: seguem só no ambiente do
+        # processo do anunciador e somem quando ele termina
+        ambiente = contato.para_ambiente(
+            dados={campo: entrada.get().strip()
+                   for campo, entrada in campos_pessoais.items()},
+            credenciais={sid: {"usuario": par["usuario"].get().strip(),
+                               "senha": par["senha"].get()}
+                         for sid, par in campos_login.items()},
+        )
+
         limpar_sinal()
         txt_log.delete("1.0", "end")
         processo = subprocess.Popen(
             get_venda_command(),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1,
+            text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
         status.set("Anunciador iniciado. Logue nos sites abertos e clique em Prosseguir.")

@@ -11,7 +11,8 @@ import time
 
 from venda.sites.base import (
     SiteAdapter, preencher_campo, clicar, enviar_fotos, dump_diagnostico,
-    detectar_barreira, esperar_formulario, fechar_cookies)
+    detectar_barreira, esperar_formulario, fechar_cookies,
+    tentar_login)
 
 
 class SiteMobiauto(SiteAdapter):
@@ -19,6 +20,7 @@ class SiteMobiauto(SiteAdapter):
     nome = "Mobiauto"
     url_home = "https://www.mobiauto.com.br/"
     disponivel = False
+    exige_login = True
     motivo_indisponivel = "pede dados do vendedor (CPF) fora do banco"
 
     def abrir_novo_anuncio(self, pagina):
@@ -32,7 +34,7 @@ class SiteMobiauto(SiteAdapter):
     def preencher(self, pagina, veiculo):
         dump_diagnostico(pagina, self.id, "inicio")
         barreira = detectar_barreira(pagina)
-        if barreira:
+        if barreira and not tentar_login(pagina, self.id):
             print(f"  ! Mobiauto caiu em {barreira}: faça login nesta aba "
                   "e rode de novo.")
             return

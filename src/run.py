@@ -6,6 +6,7 @@ from playwright.sync_api import sync_playwright
 from datetime import datetime
 
 import config
+import contato
 from parametros import Parametros, so_numeros, validar
 from navegador import abrir_navegador
 from filtros import pesquisar_produto, aplicar_localizacao, aplicar_preco
@@ -28,6 +29,8 @@ def carregar_parametros(caminho=None):
     with open(caminho, encoding="utf-8") as f:
         dados = json.load(f)
 
+    pessoais = contato.do_ambiente()
+
     return Parametros(
         produto=dados["produto"],
         cep=dados["cep"],  # agora será normalizado automaticamente
@@ -42,9 +45,12 @@ def carregar_parametros(caminho=None):
         ano_max=so_numeros(dados.get("ano_max")),
         km_max=so_numeros(dados.get("km_max")),
         cambio=dados.get("cambio", ""),
-        nome_contato=dados.get("nome_contato", ""),
-        email_contato=dados.get("email_contato", ""),
-        telefone_contato=dados.get("telefone_contato", ""),
+        # dados pessoais NÃO vêm do JSON: a interface passa em variáveis de
+        # ambiente, que morrem com este processo (ver src/contato.py)
+        nome_contato=pessoais["nome"],
+        email_contato=pessoais["email"],
+        telefone_contato=pessoais["telefone"],
+        cpf_contato=pessoais["cpf"],
     )
 
 
@@ -53,6 +59,14 @@ def pausa_humana(min_seg=0.5, max_seg=1.2):
 
 
 def main():
+    try:
+        _executar()
+    finally:
+        # dados sensíveis não sobrevivem ao fim da execução
+        contato.limpar_ambiente()
+
+
+def _executar():
     p = carregar_parametros()
 
     erros = validar(p)

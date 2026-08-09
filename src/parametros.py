@@ -25,6 +25,7 @@ class Parametros:
     nome_contato: str = ""
     email_contato: str = ""
     telefone_contato: str = ""
+    cpf_contato: str = ""
 
     def __post_init__(self):
         # limpa qualquer coisa que não seja número

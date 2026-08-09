@@ -57,7 +57,16 @@ anunciador o ignora mesmo vindo de um parametros_venda.json antigo. Ao
 calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista
 e Kavak estão em "Em breve").
 
-Login nos sites é sempre manual (bot abre abas → usuário loga → Prosseguir);
+Dados sensíveis (nome, CPF, telefone, e-mail e usuário/senha por site) são
+digitados na interface e passados ao processo do bot em **variáveis de
+ambiente** (`src/contato.py`) — nunca vão para os JSONs de parâmetros nem
+para o histórico, e `limpar_ambiente()` os apaga ao fim da execução. Senha
+jamais aparece em log; CPF/telefone só mascarados.
+
+Login nos sites: `tentar_login` (base.py) preenche usuário/senha quando o
+adaptador com `exige_login = True` bate numa barreira, mas 2FA/captcha
+continuam exigindo o usuário na janela (bot abre abas → usuário confere →
+Prosseguir);
 `detectar_barreira` (base.py) reconhece tela de login/bloqueio e o adaptador
 para com aviso em vez de preencher o nada. `fechar_cookies` roda antes do
 formulário (o OneTrust da Kavak engolia todos os cliques).

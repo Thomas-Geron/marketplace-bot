@@ -18,6 +18,7 @@ from playwright.sync_api import sync_playwright
 from navegador import abrir_navegador
 from paths import get_parametros_venda_path
 from sinal import esperar_prosseguir
+import contato
 from venda import anunciados
 from venda.sites import obter_site
 
@@ -28,6 +29,14 @@ def carregar_parametros():
 
 
 def main():
+    try:
+        _executar()
+    finally:
+        # dados sensíveis não sobrevivem ao fim da execução
+        contato.limpar_ambiente()
+
+
+def _executar():
     # o console do Windows (cp1252) pode não aceitar ✓ e afins — um print
     # jamais pode estourar (e mascarar) uma ação que já foi executada
     for saida in (sys.stdout, sys.stderr):

@@ -21,6 +21,7 @@ import subprocess
 import tkinter as tk
 from tkinter import ttk
 
+import contato
 from sinal import dar_sinal, limpar_sinal
 from paths import get_parametros_path, get_bot_command
 
@@ -130,13 +131,19 @@ def iniciar():
             "ano_max":    ent_ano_max.get().strip(),
             "km_max":     ent_km_max.get().strip(),
             "cambio":     cmb_cambio.get(),
-            "nome_contato":     ent_nome.get().strip(),
-            "email_contato":    ent_email.get().strip(),
-            "telefone_contato": ent_telefone.get().strip(),
         }
         if not params["produto"] or not params["mensagem"]:
             status.set("Erro: Produto e Mensagem são obrigatórios.")
             return
+
+        # dados pessoais NÃO entram no JSON: vão só no ambiente do processo
+        # do bot e somem quando ele termina
+        ambiente = contato.para_ambiente({
+            "nome": ent_nome.get().strip(),
+            "cpf": ent_cpf.get().strip(),
+            "telefone": ent_telefone.get().strip(),
+            "email": ent_email.get().strip(),
+        })
 
         with open(CAMINHO_PARAMS, "w", encoding="utf-8") as f:
             json.dump(params, f, ensure_ascii=False, indent=2)
@@ -148,7 +155,7 @@ def iniciar():
         processo = subprocess.Popen(
             get_bot_command(),
             cwd=BASE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1,
+            text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
 
@@ -262,17 +269,26 @@ def iniciar():
 
     lbl_contato = ttk.Label(frm, text="Seus dados de contato (somente iCarros)")
     lbl_contato.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
+    ttk.Label(frm, text="Não são salvos: só o processo do bot os recebe, "
+                        "e somem quando ele termina.",
+              foreground="#b26a00", wraplength=430).grid(
+        row=linha, column=0, sticky="w"); linha += 1
     frm_contato = ttk.Frame(frm)
     frm_contato.grid(row=linha, column=0, sticky="we"); linha += 1
     ttk.Label(frm_contato, text="Nome").grid(row=0, column=0, sticky="w")
-    ent_nome = ttk.Entry(frm_contato, width=16)
+    ent_nome = ttk.Entry(frm_contato, width=14)
     ent_nome.grid(row=0, column=1, padx=(4, 8))
     ttk.Label(frm_contato, text="E-mail").grid(row=0, column=2, sticky="w")
-    ent_email = ttk.Entry(frm_contato, width=20)
+    ent_email = ttk.Entry(frm_contato, width=18)
     ent_email.grid(row=0, column=3, padx=(4, 8))
-    ttk.Label(frm_contato, text="Telefone").grid(row=0, column=4, sticky="w")
+    ttk.Label(frm_contato, text="Telefone").grid(row=1, column=0, sticky="w",
+                                                 pady=(4, 0))
     ent_telefone = ttk.Entry(frm_contato, width=14)
-    ent_telefone.grid(row=0, column=5, padx=(4, 0))
+    ent_telefone.grid(row=1, column=1, padx=(4, 8), pady=(4, 0))
+    ttk.Label(frm_contato, text="CPF").grid(row=1, column=2, sticky="w",
+                                            pady=(4, 0))
+    ent_cpf = ttk.Entry(frm_contato, width=18)
+    ent_cpf.grid(row=1, column=3, padx=(4, 8), pady=(4, 0))
 
     ttk.Separator(frm, orient="horizontal").grid(
         row=linha, column=0, sticky="we", pady=(4, 6)); linha += 1
@@ -320,7 +336,7 @@ def iniciar():
             entrada.configure(state=estados["extras"])
         cmb_cambio.configure(state=estados["cambio"])
         cmb_raio.configure(state=estados["raio"])
-        for entrada in (ent_nome, ent_email, ent_telefone):
+        for entrada in (ent_nome, ent_email, ent_telefone, ent_cpf):
             entrada.configure(state=estados["contato"])
 
         lbl_raio.configure(
