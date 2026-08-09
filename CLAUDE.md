@@ -120,9 +120,14 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   (`#ButtonSendProposal`); os seletores são escopados por
   `form:has(textarea[name="message"])` porque a página tem OUTRO form, o de
   financiamento, que pede CPF. Preço é filtrado pelo bot (lido do card) e
-  não há filtro de região nesta versão. Na **Venda** o form fica atrás do
-  login (`/vender-carro` → "Criar meu anúncio" → `/login`), então o site
-  está em "Em breve".
+  não há filtro de região nesta versão. Na **Venda**, deslogado cai em
+  `/login`; **logado** (ago/2026) `/vender-carro` vai direto para
+  `/vender-carro/especificacoes`, cuja etapa 1 é a PLACA
+  (`[data-qa="placaInput"]` + `[data-qa="btnContinuarEspec"]`) — o site puxa
+  marca/modelo/versão dela, então veículo sem `placa` não dá para anunciar
+  lá. As etapas seguintes ainda precisam de uma placa real para mapear
+  (o adaptador grava `debug/webmotors/apos-placa`), por isso segue em
+  "Em breve".
 - **Desafio "Pressione e segure"** (Akamai/PerimeterX, Webmotors):
   `esperar_desafio_humano` (base.py) reconhece, deixa a janela aberta e
   espera o usuário resolver — o bot nunca tenta contornar. Descoberta útil

@@ -2,16 +2,18 @@
 """
 Webmotors — anúncio de veículo.
 
-Calibrado com captura real (ago/2026): a entrada é `/vender-carro`, cujos
-CTAs ("Criar meu anúncio", "Anunciar meu carro") levam a
-`/login?r=...` — o formulário de anúncio fica INTEIRO atrás do login
-(campos `email` e `password`, além de Google/Facebook/Apple).
+Calibrado com capturas reais (ago/2026):
+- deslogado, `/vender-carro` → "Criar meu anúncio" leva a `/login?r=...`
+  (campos `email`/`password`, além de Google/Facebook/Apple);
+- logado, `/vender-carro` cai direto em `/vender-carro/especificacoes`,
+  cuja ETAPA 1 é a PLACA: `[data-qa="placaInput"]` +
+  `[data-qa="btnContinuarEspec"]`. O site puxa marca/modelo/versão dela,
+  então veículo sem placa no banco não tem como ser anunciado aqui.
 
-Por isso o site nasce em "Em breve": sem uma sessão, não existe formulário
-para calibrar. Com usuário/senha preenchidos na interface (guardados só em
-memória), `tentar_login` faz a autenticação; a partir daí o formulário
-precisa ser calibrado com as capturas de
-%LOCALAPPDATA%/MarketplaceBot/debug/webmotors.
+As etapas DEPOIS da placa ainda não foram calibradas (precisam de uma
+placa real para avançar): o adaptador registra `debug/webmotors/apos-placa`
+para fechar os seletores na próxima rodada. Por isso o site segue em
+"Em breve".
 
 A Webmotors também usa o desafio "Pressione e segure" contra navegador
 automatizado: o bot reconhece e espera VOCÊ resolver na janela, sem tentar
@@ -34,19 +36,21 @@ class SiteWebmotors(SiteAdapter):
     motivo_indisponivel = "formulário de anúncio fica atrás do login"
 
     def abrir_novo_anuncio(self, pagina):
+        # logado, /vender-carro já cai direto na primeira etapa (a placa)
         pagina.goto("https://www.webmotors.com.br/vender-carro")
         pagina.wait_for_load_state("domcontentloaded")
         pagina.wait_for_timeout(4000)
         fechar_cookies(pagina)
         esperar_desafio_humano(pagina, minutos=5)
 
-        clicar(pagina, [
-            'button:has-text("Criar meu anúncio")',
-            'a:has-text("Criar meu anúncio")',
-            'button:has-text("Anunciar meu carro")',
-        ], "Criar meu anúncio")
-        pagina.wait_for_timeout(6000)
-        esperar_desafio_humano(pagina, minutos=5)
+        if "/especificacoes" not in pagina.url:
+            clicar(pagina, [
+                'button:has-text("Criar meu anúncio")',
+                'a:has-text("Criar meu anúncio")',
+                'button:has-text("Anunciar meu carro")',
+            ], "Criar meu anúncio")
+            pagina.wait_for_timeout(6000)
+            esperar_desafio_humano(pagina, minutos=5)
 
     def preencher(self, pagina, veiculo):
         dump_diagnostico(pagina, self.id, "inicio")
@@ -57,16 +61,34 @@ class SiteWebmotors(SiteAdapter):
             return
         esperar_formulario(pagina)
 
-        # seletores best-effort: o formulário só aparece logado, então ainda
-        # não foi calibrado com captura real
-        preencher_campo(pagina, [
-            'input[name*="placa" i]', 'input[placeholder*="placa" i]',
-        ], veiculo.get("placa"), "Placa")
+        # ETAPA 1 — placa (calibrada com captura real, ago/2026): o site puxa
+        # marca/modelo/versão a partir dela, então sem placa não há anúncio
+        placa = veiculo.get("placa")
+        if not placa:
+            print("  ! veículo sem placa no banco — a Webmotors começa o "
+                  "anúncio pela placa; pulei este veículo")
+            return
+        if not preencher_campo(pagina, [
+            '[data-qa="placaInput"]', 'input[placeholder="ABC1D23"]',
+            'input[data-testid="inputTest"]',
+        ], placa, "Placa"):
+            dump_diagnostico(pagina, self.id, "sem-campo-placa")
+            return
+        clicar(pagina, ['[data-qa="btnContinuarEspec"]',
+                        'button:has-text("Continuar")'], "Continuar (placa)")
+        pagina.wait_for_timeout(6000)
+        esperar_desafio_humano(pagina, minutos=5)
+
+        # ETAPAS SEGUINTES — ainda não calibradas: o diagnóstico registra a
+        # tela para fechar os seletores na próxima rodada
+        dump_diagnostico(pagina, self.id, "apos-placa")
         preencher_campo(pagina, [
             'input[name*="km" i]', 'input[placeholder*="quilometragem" i]',
+            '[data-qa*="km" i]',
         ], veiculo.get("km"), "Quilometragem")
         preencher_campo(pagina, [
             'input[name*="preco" i]', 'input[placeholder*="preço" i]',
+            '[data-qa*="preco" i]',
         ], veiculo.get("preco"), "Preço")
         preencher_campo(pagina, [
             'textarea[name*="descricao" i]', "textarea",
