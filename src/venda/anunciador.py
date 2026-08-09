@@ -108,6 +108,14 @@ def _executar():
                         continue
 
                     site.publicar(aba)
+
+                    if getattr(site, "publicacao_manual", False):
+                        # site pago: quem escolhe plano e paga é o usuário,
+                        # então não dá para dizer que foi publicado
+                        print(f"[aguardando você] {v['titulo']} preenchido em "
+                              f"{site.nome} — conclua o plano na janela.")
+                        continue
+
                     anunciados.registrar(v["id"], site_id, v["titulo"])
                     feitos += 1
                     print(f"Publicado: {v['titulo']} em {site.nome}")

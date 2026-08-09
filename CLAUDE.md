@@ -55,8 +55,10 @@ local em assets/ para testes).
 Site sem formulário calibrado ponta a ponta leva `disponivel = False` +
 `motivo_indisponivel`: a interface o mostra cinza com "Em breve" e o
 anunciador o ignora mesmo vindo de um parametros_venda.json antigo. Ao
-calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista,
-Webmotors e Kavak estão em "Em breve").
+calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista
+e Kavak estão em "Em breve"). Site pago cujo anúncio depende de escolher
+plano leva `publicacao_manual = True`: o bot preenche tudo, para antes do
+pagamento e o anunciador não registra o par como publicado.
 
 Dados sensíveis (nome, CPF, telefone, e-mail e usuário/senha por site) são
 digitados na interface e passados ao processo do bot em **variáveis de
@@ -130,9 +132,15 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   VERSÃO (`[data-qa="variable-select"]`); e existe o caminho alternativo
   `[data-qa="btnNaoPossuiPlaca"]`, que abre Marca/Modelo/Ano do Modelo/Ano
   de Fabricação/Versão/Cor — tudo que o bot já tem no banco, sem depender
-  da consulta de placa (que falha quando repetida). **A Webmotors é PAGA**:
-  a 3ª fase do assistente é plano + pagamento, e `publicar()` para antes
-  dela de propósito. Etapas 2 e 3 ainda não mapeadas → segue "Em breve".
+  da consulta de placa (que falha quando repetida). Fase 2
+  (`/vender-carro/informacoes`) calibrada: `input#quilometragem`,
+  `input#preco` (ambos por `digitar()`) e `textarea[name="observation"]` —
+  este último **bloqueia dados pessoais** por política antifraude e corta em
+  500 caracteres, então o adaptador limpa telefone/e-mail/CPF antes de
+  escrever. **A Webmotors é PAGA**: a 3ª fase é plano + pagamento, então o
+  adaptador tem `publicacao_manual = True` — preenche tudo, para antes do
+  plano e o anunciador NÃO registra como publicado (quem conclui é o
+  usuário). Por isso ela está ativa (não é mais "Em breve").
 - **Desafio "Pressione e segure"** (Akamai/PerimeterX, Webmotors):
   `esperar_desafio_humano` (base.py) reconhece, deixa a janela aberta e
   espera o usuário resolver — o bot nunca tenta contornar. Descoberta útil

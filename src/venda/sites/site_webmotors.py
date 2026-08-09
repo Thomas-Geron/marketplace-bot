@@ -31,6 +31,7 @@ A Webmotors também usa o desafio "Pressione e segure" contra navegador
 automatizado: o bot reconhece e espera VOCÊ resolver na janela, sem tentar
 contornar.
 """
+import re
 import time
 
 from venda.sites.base import (
@@ -39,13 +40,33 @@ from venda.sites.base import (
     preencher_campo, tentar_login)
 
 
+# a Webmotors bloqueia dados pessoais na descrição ("políticas antifraude")
+# e corta em 500 caracteres — o texto vai limpo e truncado
+_LIMITE_DESCRICAO = 500
+_PESSOAL = re.compile(
+    r"(\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4})"        # telefone
+    r"|([\w.+-]+@[\w-]+\.[\w.]+)"                  # e-mail
+    r"|(\d{3}\.?\d{3}\.?\d{3}-?\d{2})",           # CPF
+    re.I)
+
+
+def _descricao_permitida(veiculo):
+    """Descrição sem telefone/e-mail/CPF e dentro do limite do site."""
+    texto = str(veiculo.get("descricao") or "").strip()
+    limpo = _PESSOAL.sub("", texto)
+    if limpo != texto:
+        print("  ! removi dado pessoal da descrição: a Webmotors bloqueia "
+              "telefone/e-mail/CPF nesse campo")
+    return " ".join(limpo.split())[:_LIMITE_DESCRICAO]
+
+
 class SiteWebmotors(SiteAdapter):
     id = "webmotors"
     nome = "Webmotors"
     url_home = "https://www.webmotors.com.br/vender-carro"
-    disponivel = False
+    disponivel = True
     exige_login = True
-    motivo_indisponivel = "formulário de anúncio fica atrás do login"
+    publicacao_manual = True   # anúncio pago: quem escolhe plano é você
 
     def abrir_novo_anuncio(self, pagina):
         # logado, /vender-carro já cai direto na primeira etapa (a placa)
@@ -112,22 +133,16 @@ class SiteWebmotors(SiteAdapter):
         pagina.wait_for_timeout(6000)
         esperar_desafio_humano(pagina, minutos=5)
 
-        # ETAPAS SEGUINTES — ainda não calibradas: o diagnóstico registra a
-        # tela para fechar os seletores na próxima rodada
-        dump_diagnostico(pagina, self.id, "apos-placa")
-        preencher_campo(pagina, [
-            'input[name*="km" i]', 'input[placeholder*="quilometragem" i]',
-            '[data-qa*="km" i]',
-        ], veiculo.get("km"), "Quilometragem")
-        preencher_campo(pagina, [
-            'input[name*="preco" i]', 'input[placeholder*="preço" i]',
-            '[data-qa*="preco" i]',
-        ], veiculo.get("preco"), "Preço")
-        preencher_campo(pagina, [
-            'textarea[name*="descricao" i]', "textarea",
-        ], veiculo.get("descricao"), "Descrição")
-        enviar_fotos(pagina, veiculo, ['input[type="file"]'])
+        # FASE 2 — /vender-carro/informacoes (calibrada com captura real)
+        dump_diagnostico(pagina, self.id, "informacoes")
+        digitar(pagina, ['input#quilometragem', 'input[name="mileage"]'],
+                veiculo.get("km"), "Quilometragem")
+        digitar(pagina, ['input#preco', 'input[name="price"]'],
+                veiculo.get("preco"), "Preço")
+        preencher_campo(pagina, ['textarea[name="observation"]', "textarea"],
+                        _descricao_permitida(veiculo), "Descrição")
 
+        # a fase 3 é plano + pagamento: o bot para aqui de propósito
         dump_diagnostico(pagina, self.id, "fim")
         time.sleep(2)
 

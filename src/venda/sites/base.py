@@ -426,6 +426,10 @@ class SiteAdapter:
     # oferece campos de usuário/senha (guardados só em memória) e o
     # adaptador chama tentar_login antes de desistir
     exige_login = False
+    # True quando a publicação depende de escolher plano/pagar: o bot
+    # preenche tudo e PARA — quem conclui é o usuário. O anunciador não
+    # registra o par veículo×site como publicado nesses casos.
+    publicacao_manual = False
 
     def abrir_novo_anuncio(self, pagina):
         """Navega até o formulário de novo anúncio, pronto para preencher."""
