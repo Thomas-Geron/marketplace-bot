@@ -24,6 +24,7 @@ from tkinter import ttk
 import contato
 from sinal import dar_sinal, limpar_sinal
 from paths import get_parametros_path, get_bot_command
+from ui_scroll import criar_area_rolavel
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CAMINHO_PARAMS = str(get_parametros_path())
@@ -80,10 +81,10 @@ def iniciar():
 
     root = tk.Tk()
     root.title("MarketplaceBot — Compra")
-    root.geometry("460x880")
+    root.geometry("460x760")
 
-    frm = ttk.Frame(root, padding=14)
-    frm.pack(fill="both", expand=True)
+    # com rolagem: em telas menores os botões ficavam fora de alcance
+    frm = criar_area_rolavel(root)
 
     vcmd = (root.register(so_digitos), "%P")
     linha = 0

@@ -16,6 +16,7 @@ from tkinter import ttk
 
 from paths import get_parametros_venda_path, get_venda_command
 from sinal import dar_sinal, limpar_sinal
+from ui_scroll import criar_area_rolavel
 import contato
 from venda import anunciados
 from venda.banco import BancoVeiculos
@@ -42,8 +43,8 @@ def iniciar():
     root.title("MarketplaceBot — Venda/Anúncio")
     root.geometry("560x800")
 
-    frm = ttk.Frame(root, padding=14)
-    frm.pack(fill="both", expand=True)
+    # com rolagem: a tela cresceu e os botões ficavam fora de alcance
+    frm = criar_area_rolavel(root)
 
     # topo: volta para a escolha Compra/Venda sem fechar o app
     topo = ttk.Frame(frm)
@@ -134,7 +135,9 @@ def iniciar():
     frm_sites = ttk.LabelFrame(
         frm, text="Sites (você fará o login manualmente em cada um)", padding=10
     )
-    for site in listar_sites():
+    # usáveis primeiro; os "Em breve" descem para o fim da lista
+    for site in sorted(listar_sites(),
+                       key=lambda s: (not getattr(s, "disponivel", True), s.nome)):
         var = tk.IntVar(value=0)
         vars_sites[site.id] = var
         disponivel = getattr(site, "disponivel", True)
@@ -184,7 +187,9 @@ def iniciar():
     campos_login = {}
     proxima_linha = 3
     for site in listar_sites():
-        if not getattr(site, "exige_login", False):
+        # não pedir login de site que a interface nem deixa marcar
+        if not (getattr(site, "exige_login", False)
+                and getattr(site, "disponivel", True)):
             continue
         ttk.Label(frm_dados, text=f"{site.nome} — usuário / senha").grid(
             row=proxima_linha, column=0, columnspan=4, sticky="w",

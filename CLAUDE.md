@@ -8,7 +8,9 @@ com auto-update.
 
 Navegação: `interface_principal.iniciar()` é um laço — o seletor abre o modo
 escolhido e cada tela devolve `"voltar"` (o seletor reaparece) ou `"sair"`
-(encerra). Por isso `interface_bot` e `interface_venda` expõem `iniciar()` e
+(encerra). As duas telas montam o conteúdo dentro de
+`ui_scroll.criar_area_rolavel()`: sem rolagem, o crescimento da tela deixava
+os botões de ação fora de alcance. Por isso `interface_bot` e `interface_venda` expõem `iniciar()` e
 NUNCA montam a GUI no import: seria impossível abrir a tela duas vezes no
 mesmo processo.
 
