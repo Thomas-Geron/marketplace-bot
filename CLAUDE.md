@@ -103,9 +103,19 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   `button[aria-label="Fazer cotação"]`; não há atalho por placa.
 - **iCarros e NaPista exigem login** (accounts.icarros.com /
   auth.napista.com.br) — sem sessão não existe formulário; o adaptador
-  detecta e avisa. **Mobiauto**: o form real é `/vender/criar-anuncio` e
-  começa pelos dados do vendedor (e-mail/nome/CPF/telefone), que não
-  vivem no banco → o usuário preenche essa etapa uma vez.
+  detecta e avisa. **NaPista** ainda pede **CNPJ da loja** no painel do
+  lojista, então nem com login pessoal dá para anunciar.
+- **Mobiauto calibrada** (ago/2026, sessão logada): abas
+  Sobre você → Veículo → Fotos → **Planos** (é paga, daí
+  `publicacao_manual = True`). A aba Veículo é uma sequência: tipo Carro
+  (`[data-testid="car"]`), **placa obrigatória** (`input[name="plate"]`,
+  por `digitar()` — ela preenche marca/modelo/ano/versão/câmbio/
+  combustível/portas/cor sozinha), `input[name="km"]`, características
+  (opcionais do banco), destaques (deixados ao usuário), descrição
+  obrigatória e preço; depois as fotos (`input[type=file]` múltiplo, com
+  "Pular"). Os campos de marca/modelo/etc. **repetem `id="autocomplete"`**,
+  então a âncora é `label:text-is("<rótulo>") + xpath=following::input[1]`,
+  e as opções são MUI (`li[role="option"]` com o texto num `<p>`).
 - Compra multi-site: **OLX calibrada** com captura real (jul/2026) —
   cards `a[data-testid="adcard-link"]`, chat por `button:has-text("Chat")`,
   filtros do painel por id (`mileage_*`, `regdate_*`, `price_*`) e
