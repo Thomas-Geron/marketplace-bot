@@ -35,8 +35,9 @@ mesmo processo.
   o banco. Publishable key é pública por design (RLS protege); **nunca**
   commitar service_role key.
 - Schema: `veiculos(id, ano, km, cor, placa, combustivel, cambio, portas,
-  versao, carroceria, preco_anunciado, valor_venda, valor_compra, opcionais,
-  status, user_id, marca_id→marcas(nome), modelo_id→modelos(nome))` +
+  versao, carroceria, chassi, renavam, preco_anunciado, valor_venda,
+  valor_compra, opcionais, status, user_id, marca_id→marcas(nome),
+  modelo_id→modelos(nome))` +
   `fotos(veiculo_id, url)`. Na dúvida sobre uma coluna, confirme no banco:
   `GET /rest/v1/veiculos?select=<coluna>&limit=1` responde 400 com o nome
   exato quando a coluna não existe (a RLS só esconde as linhas).
@@ -57,8 +58,8 @@ local em assets/ para testes).
 Site sem formulário calibrado ponta a ponta leva `disponivel = False` +
 `motivo_indisponivel`: a interface o mostra cinza com "Em breve" e o
 anunciador o ignora mesmo vindo de um parametros_venda.json antigo. Ao
-calibrar, basta voltar a flag para True (hoje: iCarros, Mobiauto, NaPista
-e Kavak estão em "Em breve"). Site pago cujo anúncio depende de escolher
+calibrar, basta voltar a flag para True (hoje só NaPista e Kavak estão em
+"Em breve"). Site pago cujo anúncio depende de escolher
 plano leva `publicacao_manual = True`: o bot preenche tudo, para antes do
 pagamento e o anunciador não registra o par como publicado.
 
@@ -101,10 +102,18 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 - **Kavak calibrada** (jul/2026): funil na própria home, em cascata
   Ano → Marca → Modelo (`aui-select`, opções `button.option`), botão
   `button[aria-label="Fazer cotação"]`; não há atalho por placa.
-- **iCarros e NaPista exigem login** (accounts.icarros.com /
-  auth.napista.com.br) — sem sessão não existe formulário; o adaptador
-  detecta e avisa. **NaPista** ainda pede **CNPJ da loja** no painel do
-  lojista, então nem com login pessoal dá para anunciar.
+- **iCarros (Venda) calibrado** (ago/2026, sessão logada): fluxo em URLs
+  próprias — `/vender/novo/meuveiculo/sobre` (placa `#qa_txt_placa` →
+  "buscar placa" → versão `[id^="qa_rdn_modelo"]`, que preenche
+  marca/modelo/anos/versão/cor/portas/combustível; sobram `#qa_cmb_km` e
+  as caixas `input[name="opcionais"]`), `/chassi` (8 ÚLTIMOS dígitos, com
+  botão "Validar depois"), `/preco` (`#qa_txt_preco`), `/descricao`
+  (`textarea[name="descricao"]` — o id do site tem um ESPAÇO no meio, então
+  `#descricao` não casa; o botão é `#qa_btn_proxima`, com A) e `/fotos`
+  (`#react-images-upload`). É **pago** → `publicacao_manual = True`.
+- **NaPista** exige login (auth.napista.com.br) **e CNPJ da loja** no
+  painel do lojista, então nem com conta pessoal dá para anunciar — segue
+  em "Em breve".
 - **Mobiauto calibrada** (ago/2026, sessão logada): abas
   Sobre você → Veículo → Fotos → **Planos** (é paga, daí
   `publicacao_manual = True`). A aba Veículo é uma sequência: tipo Carro

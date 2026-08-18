@@ -32,7 +32,8 @@ TABELA_VEICULOS = "veiculos"
 
 # Consulta com os joins de marca, modelo e fotos (sintaxe PostgREST)
 SELECT_VEICULOS = (
-    "id,ano,km,cor,placa,combustivel,cambio,portas,versao,carroceria,"
+    "id,ano,km,cor,placa,chassi,renavam,combustivel,cambio,portas,versao,"
+    "carroceria,"
     "preco_anunciado,valor_venda,opcionais,status,"
     "marcas(nome),modelos(nome),fotos(url)"
 )
@@ -126,6 +127,8 @@ def normalizar(linha: dict) -> dict:
         "descricao": " · ".join(partes),
         "fotos": fotos,
         "placa": linha.get("placa"),
+        "chassi": linha.get("chassi"),
+        "renavam": linha.get("renavam"),
         "status": linha.get("status"),
         "titulo": " ".join(str(p) for p in (marca, modelo, ano) if p),
         # brutos para sites com formulário estruturado (ex.: Facebook)
