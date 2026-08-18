@@ -4,8 +4,15 @@ Interface do módulo Venda/Anúncio (Tkinter).
 
 Fluxo: login na conta do usuário (Supabase) → lista os veículos DELE →
 usuário marca veículos + sites → Rodar grava parametros_venda.json e
-inicia o anunciador como subprocesso (mesmo padrão da tela de Compra:
-log na janela, botão Prosseguir libera após login manual nos sites).
+inicia o anunciador como subprocesso (log na janela, botão Prosseguir
+libera após o login manual nos sites).
+
+Duas regras de tela que valem registrar:
+- depois de entrar, o bloco de login some e vira uma linha "Conectado:
+  fulano [Sair]" — ele já cumpriu o papel e só ocupava espaço;
+- os campos sensíveis (dados pessoais e usuário/senha por site) só
+  aparecem quando um site que precisa deles está MARCADO. Antes a tela
+  pedia login de sites que nem dava para selecionar.
 """
 import json
 import queue
@@ -14,10 +21,11 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 
+import contato
+import ui_tema
 from paths import get_parametros_venda_path, get_venda_command
 from sinal import dar_sinal, limpar_sinal
 from ui_scroll import criar_area_rolavel
-import contato
 from venda import anunciados
 from venda.banco import BancoVeiculos
 from venda.config_venda import modo_demo
@@ -27,77 +35,164 @@ processo = None
 log_queue = queue.Queue()
 
 
+def sites_ordenados():
+    """Utilizáveis primeiro; os 'Em breve' no fim."""
+    return sorted(listar_sites(),
+                  key=lambda s: (not getattr(s, "disponivel", True), s.nome))
+
+
 def iniciar():
     """Abre o painel de Venda. Retorna 'voltar' ou 'sair'."""
-    global processo
+    global processo, log_queue
     banco = BancoVeiculos()
     veiculos = []          # dicts normalizados vindos do banco
     vars_sites = {}        # site_id -> IntVar
     resultado = {"acao": "sair"}
-
-    # fila nova a cada abertura: log velho não pode vazar para a sessão nova
-    global log_queue
     log_queue = queue.Queue()
 
     root = tk.Tk()
     root.title("MarketplaceBot — Venda/Anúncio")
-    root.geometry("560x800")
+    root.geometry("580x800")
+    root.minsize(520, 560)
+    ui_tema.aplicar_tema(root)
 
-    # com rolagem: a tela cresceu e os botões ficavam fora de alcance
     frm = criar_area_rolavel(root)
-
-    # topo: volta para a escolha Compra/Venda sem fechar o app
-    topo = ttk.Frame(frm)
-    topo.pack(fill="x", pady=(0, 8))
-    tk.Button(topo, text="← Voltar", command=lambda: encerrar("voltar"),
-              bg="#455a64", fg="white", width=10).pack(side="left")
-    ttk.Label(topo, text="  Venda / Anúncio — anunciar veículos do seu banco",
-              font=("Segoe UI", 9, "bold")).pack(side="left")
-
+    frm.columnconfigure(0, weight=1)
     status = tk.StringVar(value="Entre com sua conta para carregar seus veículos.")
+    linha = 0
 
-    # ============================ login ============================
-    frm_login = ttk.LabelFrame(frm, text="Conta", padding=10)
-    frm_login.pack(fill="x")
+    # ------------------------------ topo ------------------------------
+    topo = ttk.Frame(frm)
+    topo.grid(row=linha, column=0, sticky="we"); linha += 1
+    ui_tema.botao(topo, "← Voltar", lambda: encerrar("voltar"),
+                  "neutro", 10).pack(side="left")
+    ttk.Label(topo, text="  Venda / Anúncio",
+              style="Titulo.TLabel").pack(side="left")
+    ttk.Label(frm, text="Anuncia os veículos do seu banco nos sites escolhidos.",
+              style="Suave.TLabel").grid(row=linha, column=0, sticky="w",
+                                         pady=(0, 10)); linha += 1
 
-    ttk.Label(frm_login, text="E-mail").grid(row=0, column=0, sticky="w")
-    ent_email = ttk.Entry(frm_login, width=32)
-    ent_email.grid(row=0, column=1, sticky="we", padx=6)
-
-    ttk.Label(frm_login, text="Senha").grid(row=1, column=0, sticky="w")
-    ent_senha = ttk.Entry(frm_login, width=32, show="•")
-    ent_senha.grid(row=1, column=1, sticky="we", padx=6)
-
-    lbl_conta = ttk.Label(frm_login, text="", foreground="#2e7d32")
-
+    # ------------------------------ conta ------------------------------
+    sec_conta = ui_tema.secao(frm, "Conta")
+    sec_conta.grid(row=linha, column=0, sticky="we", pady=(0, 8))
+    linha_conta = linha; linha += 1
+    sec_conta.columnconfigure(1, weight=1)
+    ttk.Label(sec_conta, text="E-mail").grid(row=0, column=0, sticky="w")
+    ent_email_conta = ttk.Entry(sec_conta)
+    ent_email_conta.grid(row=0, column=1, sticky="we", padx=6, pady=2)
+    ttk.Label(sec_conta, text="Senha").grid(row=1, column=0, sticky="w")
+    ent_senha_conta = ttk.Entry(sec_conta, show="•")
+    ent_senha_conta.grid(row=1, column=1, sticky="we", padx=6, pady=2)
     if modo_demo():
-        ttk.Label(
-            frm_login,
-            text="MODO DEMONSTRAÇÃO: Supabase não configurado "
-                 "(qualquer login entra; veículos de exemplo).",
-            foreground="#b26a00", wraplength=480,
-        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        ui_tema.dica(sec_conta,
+                     "MODO DEMONSTRAÇÃO: Supabase não configurado — qualquer "
+                     "login entra e os veículos são de exemplo.",
+                     largura=470).grid(row=2, column=0, columnspan=3,
+                                       sticky="w", pady=(6, 0))
 
-    # ========================= veículos ============================
-    frm_veic = ttk.LabelFrame(frm, text="Seus veículos (marque os que quer anunciar)", padding=10)
-    lst_veiculos = tk.Listbox(frm_veic, selectmode="multiple", height=9, activestyle="none")
-    scroll = ttk.Scrollbar(frm_veic, orient="vertical", command=lst_veiculos.yview)
-    lst_veiculos.configure(yscrollcommand=scroll.set)
-    lst_veiculos.pack(side="left", fill="both", expand=True)
-    scroll.pack(side="right", fill="y")
+    # barra compacta que substitui o bloco de login depois de entrar
+    barra_conta = ttk.Frame(frm)
+    lbl_conta = ttk.Label(barra_conta, text="", style="Ok.TLabel")
+    lbl_conta.pack(side="left")
 
+    # ---------------------------- veículos -----------------------------
+    sec_veic = ui_tema.secao(frm, "Seus veículos — marque os que quer anunciar")
+    sec_veic.columnconfigure(0, weight=1)
+    lst_veiculos = tk.Listbox(sec_veic, selectmode="multiple", height=9,
+                              activestyle="none", relief="solid",
+                              borderwidth=1, highlightthickness=0,
+                              font=(ui_tema.FONTE, 9))
+    rolagem = ttk.Scrollbar(sec_veic, orient="vertical",
+                            command=lst_veiculos.yview)
+    lst_veiculos.configure(yscrollcommand=rolagem.set)
+    lst_veiculos.grid(row=0, column=0, sticky="we")
+    rolagem.grid(row=0, column=1, sticky="ns")
+    linha_veic = linha; linha += 1
+
+    # ------------------------------ sites ------------------------------
+    sec_sites = ui_tema.secao(frm, "Sites")
+    sec_sites.columnconfigure(0, weight=1)
+    linha_sites = linha; linha += 1
+
+    # -------------------- dados sensíveis (dinâmico) --------------------
+    sec_dados = ui_tema.secao(frm, "Seus dados e logins — não são salvos")
+    sec_dados.columnconfigure(1, weight=1)
+    sec_dados.columnconfigure(3, weight=1)
+    linha_dados = linha; linha += 1
+
+    ui_tema.dica(sec_dados,
+                 "Nada aqui é gravado em disco: vai só para o processo do bot "
+                 "e some quando ele termina. Sites com 2FA ou captcha "
+                 "continuam exigindo você na janela.", largura=490).grid(
+        row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+
+    quadro_pessoais = ttk.Frame(sec_dados)
+    quadro_pessoais.grid(row=1, column=0, columnspan=4, sticky="we")
+    campos_pessoais = {}
+    for coluna, (campo, rotulo) in enumerate(
+            (("nome", "Nome"), ("cpf", "CPF"),
+             ("telefone", "Telefone"), ("email", "E-mail"))):
+        ttk.Label(quadro_pessoais, text=rotulo).grid(
+            row=0, column=coluna, sticky="w", padx=(0, 4))
+        entrada = ttk.Entry(quadro_pessoais, width=15)
+        entrada.grid(row=1, column=coluna, sticky="we", padx=(0, 8))
+        quadro_pessoais.columnconfigure(coluna, weight=1)
+        campos_pessoais[campo] = entrada
+
+    campos_login = {}
+    quadros_login = {}
+    proxima = 2
+    for site in listar_sites():
+        if not getattr(site, "exige_login", False):
+            continue
+        quadro = ttk.Frame(sec_dados)
+        ttk.Label(quadro, text=f"{site.nome} — usuário e senha",
+                  style="Secao.TLabel").grid(row=0, column=0, columnspan=2,
+                                             sticky="w", pady=(8, 2))
+        usuario = ttk.Entry(quadro, width=26)
+        usuario.grid(row=1, column=0, sticky="we", padx=(0, 8))
+        senha = ttk.Entry(quadro, width=20, show="•")
+        senha.grid(row=1, column=1, sticky="we")
+        quadro.columnconfigure(0, weight=1)
+        quadro.columnconfigure(1, weight=1)
+        quadro.grid(row=proxima, column=0, columnspan=4, sticky="we")
+        quadros_login[site.id] = (quadro, proxima)
+        campos_login[site.id] = {"usuario": usuario, "senha": senha}
+        proxima += 1
+
+    # ------------------------------ ações ------------------------------
+    frm_acoes = ttk.Frame(frm)
+    linha_acoes = linha; linha += 1
+    var_dry = tk.IntVar(value=1)
+    ttk.Checkbutton(frm_acoes, variable=var_dry,
+                    text="Modo teste (dry-run) — preenche, mas não publica"
+                    ).pack(anchor="w", pady=(0, 6))
+    botoes = ttk.Frame(frm_acoes)
+    botoes.pack(fill="x")
+
+    sec_log = ui_tema.secao(frm, "Log do anunciador")
+    sec_log.columnconfigure(0, weight=1)
+    txt_log = ui_tema.caixa_log(sec_log, altura=9)
+    txt_log.grid(row=0, column=0, sticky="we")
+    linha_log = linha; linha += 1
+
+    ttk.Label(frm, textvariable=status, style="Suave.TLabel",
+              wraplength=520).grid(row=linha, column=0, sticky="w", pady=(8, 0))
+
+    # ----------------------------- funções -----------------------------
     def preencher_lista():
         lst_veiculos.delete(0, "end")
         registros = anunciados.carregar()
         for v in veiculos:
-            preco = f"R$ {v['preco']:,}".replace(",", ".") if v.get("preco") else "sem preço"
-            linha = f"{v['titulo']}  —  {preco}"
+            preco = (f"R$ {v['preco']:,}".replace(",", ".")
+                     if v.get("preco") else "sem preço")
+            texto = f"{v['titulo']}  —  {preco}"
             if v.get("status"):
-                linha += f"  ({v['status']})"
+                texto += f"  ({v['status']})"
             ja = anunciados.sites_do_veiculo(v["id"], registros)
             if ja:
-                linha += f"   [já em: {', '.join(ja)}]"
-            lst_veiculos.insert("end", linha)
+                texto += f"   [já em: {', '.join(ja)}]"
+            lst_veiculos.insert("end", texto)
 
     def carregar_veiculos():
         nonlocal veiculos
@@ -110,112 +205,98 @@ def iniciar():
         status.set(f"{len(veiculos)} veículo(s) carregado(s). "
                    "Marque veículos e sites e clique em Rodar.")
 
+    def atualizar_campos_sensiveis(*_):
+        """Só pede dados/logins dos sites que estão MARCADOS agora."""
+        marcados = [sid for sid, var in vars_sites.items() if var.get()]
+        precisa_pessoais = any(
+            getattr(obter(sid), "exige_dados_pessoais", False)
+            for sid in marcados)
+        com_login = [sid for sid in marcados
+                     if getattr(obter(sid), "exige_login", False)]
+
+        if precisa_pessoais:
+            quadro_pessoais.grid()
+        else:
+            quadro_pessoais.grid_remove()
+        for sid, (quadro, onde) in quadros_login.items():
+            if sid in com_login:
+                quadro.grid(row=onde, column=0, columnspan=4, sticky="we")
+            else:
+                quadro.grid_remove()
+
+        if precisa_pessoais or com_login:
+            sec_dados.grid(row=linha_dados, column=0, sticky="we", pady=(0, 8))
+        else:
+            sec_dados.grid_remove()
+
+    def obter(site_id):
+        for site in listar_sites():
+            if site.id == site_id:
+                return site
+        return None
+
     def apos_login():
+        sec_conta.grid_remove()
         lbl_conta.config(text=f"Conectado: {banco.email}")
-        lbl_conta.grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
-        frm_veic.pack(fill="both", expand=True, pady=(10, 0))
-        frm_sites.pack(fill="x", pady=(10, 0))
-        frm_dados.pack(fill="x", pady=(10, 0))
-        frm_acoes.pack(fill="x", pady=(10, 0))
+        barra_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, 8))
+        ui_tema.botao(barra_conta, "Sair", sair_da_conta, "neutro", 8).pack(
+            side="right")
+        sec_veic.grid(row=linha_veic, column=0, sticky="we", pady=(0, 8))
+        sec_sites.grid(row=linha_sites, column=0, sticky="we", pady=(0, 8))
+        frm_acoes.grid(row=linha_acoes, column=0, sticky="we", pady=(0, 8))
+        sec_log.grid(row=linha_log, column=0, sticky="we")
+        atualizar_campos_sensiveis()
         carregar_veiculos()
 
+    def sair_da_conta():
+        for widget in barra_conta.winfo_children():
+            if isinstance(widget, tk.Button):
+                widget.destroy()
+        barra_conta.grid_remove()
+        for alvo in (sec_veic, sec_sites, sec_dados, frm_acoes, sec_log):
+            alvo.grid_remove()
+        sec_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, 8))
+        status.set("Sessão encerrada nesta tela.")
+
     def entrar():
-        ok, erro = banco.login(ent_email.get().strip(), ent_senha.get())
+        ok, erro = banco.login(ent_email_conta.get().strip(),
+                               ent_senha_conta.get())
         if not ok:
             status.set(erro)
             return
         apos_login()
 
-    ttk.Button(frm_login, text="Entrar", command=entrar).grid(
-        row=0, column=2, rowspan=2, padx=(8, 0), sticky="ns"
-    )
-    frm_login.columnconfigure(1, weight=1)
+    ui_tema.botao(sec_conta, "Entrar", entrar, "destaque", 10).grid(
+        row=0, column=2, rowspan=2, padx=(8, 0), sticky="ns")
 
-    # =========================== sites =============================
-    frm_sites = ttk.LabelFrame(
-        frm, text="Sites (você fará o login manualmente em cada um)", padding=10
-    )
-    # usáveis primeiro; os "Em breve" descem para o fim da lista
-    for site in sorted(listar_sites(),
-                       key=lambda s: (not getattr(s, "disponivel", True), s.nome)):
+    for site in sites_ordenados():
         var = tk.IntVar(value=0)
+        var.trace_add("write", atualizar_campos_sensiveis)
         vars_sites[site.id] = var
         disponivel = getattr(site, "disponivel", True)
-        linha_site = ttk.Frame(frm_sites)
-        linha_site.pack(anchor="w", fill="x")
-        ttk.Checkbutton(
-            linha_site, text=site.nome, variable=var,
-            state="normal" if disponivel else "disabled",
-        ).pack(side="left")
+        linha_site = ttk.Frame(sec_sites)
+        linha_site.pack(anchor="w", fill="x", pady=1)
+        ttk.Checkbutton(linha_site, text=site.nome, variable=var,
+                        state="normal" if disponivel else "disabled").pack(
+            side="left")
+        if getattr(site, "publicacao_manual", False) and disponivel:
+            ttk.Label(linha_site, text="pago — o bot para antes do plano",
+                      style="Aviso.TLabel").pack(side="left", padx=(6, 0))
         if not disponivel:
-            # site ainda sem formulário calibrado ponta a ponta
             ttk.Label(linha_site, text="Em breve",
-                      foreground="#b26a00").pack(side="left", padx=(6, 0))
+                      style="Aviso.TLabel").pack(side="left", padx=(6, 0))
             motivo = getattr(site, "motivo_indisponivel", "")
             if motivo:
                 ttk.Label(linha_site, text=f"({motivo})",
-                          foreground="#888").pack(side="left", padx=(4, 0))
-    ttk.Label(
-        frm_sites,
-        text="Cada veículo é anunciado no máximo UMA vez por site (anti-spam).",
-        foreground="#555",
-    ).pack(anchor="w", pady=(6, 0))
-
-    # ============ dados sensíveis: usados na hora, nunca salvos ============
-    frm_dados = ttk.LabelFrame(
-        frm, text="Seus dados e logins — usados nesta execução e descartados",
-        padding=10)
-
-    ttk.Label(
-        frm_dados,
-        text="Nada aqui é gravado em disco: vai só para o processo do bot e "
-             "some quando ele termina. Sites com 2FA ou captcha continuam "
-             "exigindo você na janela.",
-        foreground="#b26a00", wraplength=500,
-    ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
-
-    campos_pessoais = {}
-    for coluna, (campo, rotulo) in enumerate(
-            (("nome", "Nome"), ("cpf", "CPF"),
-             ("telefone", "Telefone"), ("email", "E-mail"))):
-        ttk.Label(frm_dados, text=rotulo).grid(
-            row=1, column=coluna, sticky="w", padx=(0, 4))
-        entrada = ttk.Entry(frm_dados, width=16)
-        entrada.grid(row=2, column=coluna, sticky="we", padx=(0, 8))
-        campos_pessoais[campo] = entrada
-
-    campos_login = {}
-    proxima_linha = 3
-    for site in listar_sites():
-        # não pedir login de site que a interface nem deixa marcar
-        if not (getattr(site, "exige_login", False)
-                and getattr(site, "disponivel", True)):
-            continue
-        ttk.Label(frm_dados, text=f"{site.nome} — usuário / senha").grid(
-            row=proxima_linha, column=0, columnspan=4, sticky="w",
-            pady=(8, 0))
-        usuario = ttk.Entry(frm_dados, width=24)
-        usuario.grid(row=proxima_linha + 1, column=0, columnspan=2,
-                     sticky="we", padx=(0, 8))
-        senha = ttk.Entry(frm_dados, width=20, show="•")
-        senha.grid(row=proxima_linha + 1, column=2, columnspan=2, sticky="we")
-        campos_login[site.id] = {"usuario": usuario, "senha": senha}
-        proxima_linha += 2
-    for coluna in range(4):
-        frm_dados.columnconfigure(coluna, weight=1)
-
-    # ====================== ações + log ============================
-    frm_acoes = ttk.Frame(frm)
-
-    var_dry = tk.IntVar(value=1)
-    ttk.Checkbutton(
-        frm_acoes, text="Modo teste (dry-run) - preenche mas não publica",
-        variable=var_dry,
-    ).pack(anchor="w")
+                          style="Suave.TLabel").pack(side="left", padx=(4, 0))
+    ttk.Label(sec_sites,
+              text="Cada veículo é anunciado no máximo UMA vez por site "
+                   "(anti-spam).", style="Suave.TLabel").pack(anchor="w",
+                                                              pady=(6, 0))
 
     def ler_saida(proc):
-        for linha in proc.stdout:
-            log_queue.put(linha)
+        for saida in proc.stdout:
+            log_queue.put(saida)
         log_queue.put("\n[anunciador encerrado]\n")
 
     agendado = {"log": None}
@@ -264,7 +345,8 @@ def iniciar():
             text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
-        status.set("Anunciador iniciado. Logue nos sites abertos e clique em Prosseguir.")
+        status.set("Anunciador iniciado. Logue nos sites abertos e clique em "
+                   "Prosseguir.")
 
     def prosseguir():
         if processo is not None and processo.poll() is None:
@@ -283,24 +365,7 @@ def iniciar():
         else:
             status.set("O anunciador não está rodando.")
 
-    botoes = ttk.Frame(frm_acoes)
-    botoes.pack(fill="x", pady=6)
-    tk.Button(botoes, text="Rodar", command=rodar,
-              bg="#2e7d32", fg="white", width=11).pack(side="left", padx=(0, 6))
-    tk.Button(botoes, text="Prosseguir", command=prosseguir,
-              bg="#1565c0", fg="white", width=13).pack(side="left", padx=(0, 6))
-    tk.Button(botoes, text="Parar", command=parar,
-              bg="#c62828", fg="white", width=11).pack(side="left")
-
-    ttk.Label(frm_acoes, text="Log do anunciador:").pack(anchor="w", pady=(6, 0))
-    txt_log = tk.Text(frm_acoes, height=9, bg="#0d1117", fg="#d6deeb")
-    txt_log.pack(fill="both", expand=True)
-
-    ttk.Label(frm, textvariable=status, foreground="#555",
-              wraplength=520).pack(anchor="w", pady=(8, 0))
-
     def encerrar(acao):
-        """Sair da tela: o anunciador em execução é sempre parado antes."""
         resultado["acao"] = acao
         parar()
         # sem cancelar, o polling do log dispara depois do destroy e o Tk
@@ -311,6 +376,11 @@ def iniciar():
             except Exception:
                 pass
         root.destroy()
+
+    ui_tema.botao(botoes, "Rodar", rodar, "ok", 11).pack(side="left", padx=(0, 6))
+    ui_tema.botao(botoes, "Prosseguir", prosseguir, "destaque", 13).pack(
+        side="left", padx=(0, 6))
+    ui_tema.botao(botoes, "Parar", parar, "perigo", 11).pack(side="left")
 
     root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
 

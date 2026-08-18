@@ -430,6 +430,10 @@ class SiteAdapter:
     # preenche tudo e PARA — quem conclui é o usuário. O anunciador não
     # registra o par veículo×site como publicado nesses casos.
     publicacao_manual = False
+    # True quando o FORMULÁRIO do site pede dados pessoais do vendedor
+    # (nome/CPF/telefone/e-mail) além do login. A interface só mostra esses
+    # campos quando um site assim está marcado.
+    exige_dados_pessoais = False
 
     def abrir_novo_anuncio(self, pagina):
         """Navega até o formulário de novo anúncio, pronto para preencher."""

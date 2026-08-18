@@ -54,6 +54,7 @@ class SiteMobiauto(SiteAdapter):
     url_home = "https://www.mobiauto.com.br/"
     exige_login = True
     publicacao_manual = True   # a última aba é Planos: quem paga é você
+    exige_dados_pessoais = True   # aba 'Sobre você': e-mail/nome/CPF/telefone
 
     def abrir_novo_anuncio(self, pagina):
         pagina.goto("https://www.mobiauto.com.br/vender/criar-anuncio")

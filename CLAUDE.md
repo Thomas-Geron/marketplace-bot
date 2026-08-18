@@ -8,11 +8,18 @@ com auto-update.
 
 Navegação: `interface_principal.iniciar()` é um laço — o seletor abre o modo
 escolhido e cada tela devolve `"voltar"` (o seletor reaparece) ou `"sair"`
-(encerra). As duas telas montam o conteúdo dentro de
-`ui_scroll.criar_area_rolavel()`: sem rolagem, o crescimento da tela deixava
-os botões de ação fora de alcance. Por isso `interface_bot` e `interface_venda` expõem `iniciar()` e
+(encerra). Por isso `interface_bot` e `interface_venda` expõem `iniciar()` e
 NUNCA montam a GUI no import: seria impossível abrir a tela duas vezes no
 mesmo processo.
+
+Aparência: `ui_tema.py` (paleta, estilos ttk, `secao()`, `botao()`) e
+`ui_scroll.criar_area_rolavel()` (sem rolagem, o crescimento das telas
+deixava os botões de ação fora de alcance). Regra de layout: campo que o
+site escolhido NÃO usa **some** (`grid_remove`), em vez de ficar cinza —
+`campos_do_site()` na Compra e o `trace` das checkboxes na Venda decidem o
+que aparece. Na Venda, dados pessoais e usuário/senha só aparecem quando um
+site que os exige está marcado (`exige_login`, `exige_dados_pessoais`), e o
+bloco de login do Supabase se recolhe numa linha "Conectado: … [Sair]".
 
 ## Distribuição e release
 

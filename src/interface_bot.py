@@ -1,15 +1,19 @@
 """
-Interface do bot de COMPRA (painel desktop Tkinter) — log embutido e
-botão Prosseguir.
+Interface do bot de COMPRA (painel desktop Tkinter).
+
 - Rodar     : grava parametros.json e inicia o run.py, mostrando o log NA JANELA.
 - Prosseguir: substitui o ENTER do terminal (libera o login).
 - Parar     : encerra o bot a qualquer momento.
 - Voltar    : fecha esta tela e devolve o usuário à escolha Compra/Venda.
 
 Tudo vive dentro de iniciar(), que devolve "voltar" (usuário quer trocar de
-modo) ou "sair" (fechou a janela). Isso é o que permite abrir a tela mais de
-uma vez no mesmo processo — quando o módulo montava a GUI no import, trocar
-de modo exigia fechar e reabrir o app.
+modo) ou "sair" (fechou a janela) — é isso que permite abrir a tela mais de
+uma vez no mesmo processo.
+
+Cada site aceita filtros diferentes. Em vez de mostrar campo desabilitado (o
+usuário fica olhando algo que não pode usar e sem saber por quê), a tela
+MOSTRA OU ESCONDE cada bloco conforme o site escolhido — ver
+`campos_do_site()` e `atualizar_campos_do_site()`.
 """
 
 import os
@@ -22,6 +26,7 @@ import tkinter as tk
 from tkinter import ttk
 
 import contato
+import ui_tema
 from sinal import dar_sinal, limpar_sinal
 from paths import get_parametros_path, get_bot_command
 from ui_scroll import criar_area_rolavel
@@ -40,8 +45,19 @@ SITES_COMPRA = [
     ("Webmotors", "webmotors"),
 ]
 
-CINZA = "#999999"
-PRETO = "#000000"
+DICAS = {
+    "facebook": "Filtra por CEP e raio em km.",
+    "olx": ("A região vem do estado do CEP (a OLX não tem raio em km) e o "
+            "chat exige login. Rode poucos anúncios por vez: a OLX bloqueia "
+            "navegação automatizada insistente."),
+    "icarros": ("Escreva MARCA e MODELO em Produto (ex.: 'chevrolet onix'). "
+                "Não exige login, mas o formulário do anúncio envia seu "
+                "nome/e-mail/telefone ao vendedor. A região vem do estado do "
+                "CEP e o preço é filtrado pelo bot."),
+    "webmotors": ("O formulário do anúncio envia seu nome/e-mail/telefone ao "
+                  "vendedor. Não filtra por região nesta versão e pode pedir "
+                  "'Pressione e segure' — o bot espera você resolver na janela."),
+}
 
 processo = None
 log_queue = queue.Queue()
@@ -51,56 +67,42 @@ def so_digitos(proposto):
     return proposto == "" or proposto.isdigit()
 
 
-def estados_por_site(site):
-    """Estado ('normal'/'readonly'/'disabled') de cada grupo de campos para o
-    site escolhido. Regra separada da GUI para poder ser testada sozinha.
+def campos_do_site(site):
+    """Quais blocos da tela o site realmente usa.
 
+    Regra separada da GUI para poder ser testada sozinha:
     - Facebook: CEP + raio em km; não tem ano/km/câmbio nem contato.
     - OLX: região pelo estado do CEP (sem raio) + ano/km/câmbio.
-    - iCarros: sem raio; exige nome/e-mail/telefone (o formulário do anúncio).
+    - iCarros e Webmotors: sem raio; exigem seus dados de contato, porque o
+      formulário do anúncio os envia ao vendedor.
     """
-    olx = site == "olx"
-    icarros = site == "icarros"
     return {
-        "extras": "normal" if olx else "disabled",
-        "cambio": "readonly" if olx else "disabled",
-        "raio": "disabled" if (olx or icarros) else "readonly",
-        "contato": "normal" if site in ("icarros", "webmotors")
-                   else "disabled",
+        "raio": site == "facebook",
+        "extras": site == "olx",
+        "contato": site in ("icarros", "webmotors"),
     }
 
 
 def iniciar():
     """Abre o painel de Compra. Retorna 'voltar' ou 'sair'."""
-    global processo
+    global processo, log_queue
     resultado = {"acao": "sair"}
-
-    # fila nova a cada abertura: log velho não pode vazar para a sessão nova
-    global log_queue
-    log_queue = queue.Queue()
+    log_queue = queue.Queue()   # fila nova: log velho não vaza para a sessão
 
     root = tk.Tk()
     root.title("MarketplaceBot — Compra")
-    root.geometry("460x760")
+    root.geometry("470x780")
+    root.minsize(430, 520)
+    ui_tema.aplicar_tema(root)
 
-    # com rolagem: em telas menores os botões ficavam fora de alcance
     frm = criar_area_rolavel(root)
-
+    frm.columnconfigure(0, weight=1)
     vcmd = (root.register(so_digitos), "%P")
-    linha = 0
-
-    def campo(label):
-        nonlocal linha
-        ttk.Label(frm, text=label).grid(row=linha, column=0, sticky="w",
-                                        pady=(6, 0))
-        linha += 1
 
     def site_escolhido():
-        """id do site marcado no combo."""
         return dict(SITES_COMPRA).get(cmb_site.get(), "facebook")
 
     def ler_saida(proc):
-        """Thread separada: lê o que o bot imprime e joga na fila."""
         for saida in proc.stdout:
             log_queue.put(saida)
         log_queue.put("\n[bot encerrado]\n")
@@ -108,7 +110,6 @@ def iniciar():
     agendado = {"log": None}
 
     def drenar_log():
-        """Thread principal: tira as linhas da fila e mostra no log."""
         while not log_queue.empty():
             txt_log.insert("end", log_queue.get_nowait())
             txt_log.see("end")
@@ -154,7 +155,6 @@ def iniciar():
         limpar_sinal()           # descarta sinal antigo pra não 'prosseguir' sozinho
         txt_log.delete("1.0", "end")
 
-        # -u = saida sem buffer, pra o log aparecer na hora
         processo = subprocess.Popen(
             get_bot_command(),
             cwd=BASE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -166,7 +166,6 @@ def iniciar():
         status.set(f"Bot iniciado ({modo}). Faça o login e clique em Prosseguir.")
 
     def prosseguir():
-        """Cria o sinal que libera o bot (substitui o ENTER)."""
         if processo is not None and processo.poll() is None:
             dar_sinal()
             status.set("Sinal enviado — o bot vai prosseguir.")
@@ -183,7 +182,6 @@ def iniciar():
             status.set("O bot não está rodando.")
 
     def encerrar(acao):
-        """Sair da tela: o bot em execução é sempre parado antes."""
         resultado["acao"] = acao
         parar()
         # sem cancelar, o polling do log dispara depois do destroy e o Tk
@@ -196,189 +194,174 @@ def iniciar():
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
+    linha = 0
 
-    # ---------------- topo: voltar para a escolha de modo ----------------
+    # ------------------------------ topo ------------------------------
     topo = ttk.Frame(frm)
-    topo.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
-    tk.Button(topo, text="← Voltar", command=lambda: encerrar("voltar"),
-              bg="#455a64", fg="white", width=10).pack(side="left")
-    ttk.Label(topo, text="  Compra — buscar anúncios e enviar mensagens",
-              font=("Segoe UI", 9, "bold")).pack(side="left")
+    topo.grid(row=linha, column=0, sticky="we"); linha += 1
+    ui_tema.botao(topo, "← Voltar", lambda: encerrar("voltar"),
+                  "neutro", 10).pack(side="left")
+    ttk.Label(topo, text="  Compra", style="Titulo.TLabel").pack(side="left")
+    ttk.Label(frm, text="Busca anúncios e envia mensagens aos vendedores.",
+              style="Suave.TLabel").grid(row=linha, column=0, sticky="w",
+                                         pady=(0, 10)); linha += 1
 
-    campo("Site de busca")
-    cmb_site = ttk.Combobox(frm, state="readonly",
+    # ---------------------------- onde buscar ----------------------------
+    sec_site = ui_tema.secao(frm, "Onde buscar")
+    sec_site.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    sec_site.columnconfigure(0, weight=1)
+    cmb_site = ttk.Combobox(sec_site, state="readonly",
                             values=[rotulo for rotulo, _ in SITES_COMPRA])
     cmb_site.set(SITES_COMPRA[0][0])
-    cmb_site.grid(row=linha, column=0, sticky="we"); linha += 1
-    lbl_site_dica = ttk.Label(frm, text="", foreground="#b26a00", wraplength=430)
-    lbl_site_dica.grid(row=linha, column=0, sticky="w"); linha += 1
+    cmb_site.grid(row=0, column=0, sticky="we")
+    lbl_site_dica = ui_tema.dica(sec_site, largura=400)
+    lbl_site_dica.grid(row=1, column=0, sticky="w", pady=(6, 0))
 
-    campo("Produto")
-    ent_produto = ttk.Entry(frm)
-    ent_produto.grid(row=linha, column=0, sticky="we"); linha += 1
+    # ---------------------------- o que buscar ---------------------------
+    sec_busca = ui_tema.secao(frm, "O que buscar")
+    sec_busca.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    sec_busca.columnconfigure(1, weight=1)
 
-    campo("Valor minimo (vazio = sem minimo)")
-    ent_min = ttk.Entry(frm, validate="key", validatecommand=vcmd)
-    ent_min.grid(row=linha, column=0, sticky="we"); linha += 1
+    ttk.Label(sec_busca, text="Produto").grid(row=0, column=0, sticky="w")
+    ent_produto = ttk.Entry(sec_busca)
+    ent_produto.grid(row=0, column=1, columnspan=3, sticky="we", pady=2)
 
-    campo("Valor maximo (vazio = sem maximo)")
-    ent_max = ttk.Entry(frm, validate="key", validatecommand=vcmd)
-    ent_max.grid(row=linha, column=0, sticky="we"); linha += 1
+    ttk.Label(sec_busca, text="Preço de").grid(row=1, column=0, sticky="w")
+    ent_min = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
+    ent_min.grid(row=1, column=1, sticky="w", padx=(0, 8), pady=2)
+    ttk.Label(sec_busca, text="até").grid(row=1, column=2, sticky="e")
+    ent_max = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
+    ent_max.grid(row=1, column=3, sticky="w", pady=2)
 
-    campo("CEP")
-    ent_cep = ttk.Entry(frm)
-    ent_cep.grid(row=linha, column=0, sticky="we"); linha += 1
+    ttk.Label(sec_busca, text="Quantidade").grid(row=2, column=0, sticky="w")
+    ent_qtd = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
+    ent_qtd.grid(row=2, column=1, sticky="w", pady=2)
+    ttk.Label(sec_busca, text="vazio = todos",
+              style="Suave.TLabel").grid(row=2, column=2, columnspan=2, sticky="w")
 
-    lbl_raio = ttk.Label(frm, text="Raio (km)")
-    lbl_raio.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
+    # ------------------------------ região ------------------------------
+    sec_regiao = ui_tema.secao(frm, "Região")
+    sec_regiao.columnconfigure(1, weight=1)
+    ttk.Label(sec_regiao, text="CEP").grid(row=0, column=0, sticky="w")
+    ent_cep = ttk.Entry(sec_regiao, width=14)
+    ent_cep.grid(row=0, column=1, sticky="w", pady=2)
+    lbl_raio = ttk.Label(sec_regiao, text="Raio (km)")
+    lbl_raio.grid(row=1, column=0, sticky="w")
     cmb_raio = ttk.Combobox(
-        frm, state="readonly",
+        sec_regiao, state="readonly", width=12,
         values=["1", "2", "5", "10", "20", "40", "60", "80", "100", "250", "500"])
     cmb_raio.set("60")
-    cmb_raio.grid(row=linha, column=0, sticky="we"); linha += 1
+    cmb_raio.grid(row=1, column=1, sticky="w", pady=2)
+    linha_regiao = linha
+    sec_regiao.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
 
-    campo("Quantidade (vazio = todos)")
-    ent_qtd = ttk.Entry(frm, validate="key", validatecommand=vcmd)
-    ent_qtd.grid(row=linha, column=0, sticky="we"); linha += 1
-
-    # filtros que so a OLX tem hoje (o Facebook ignora estes campos)
-    ttk.Separator(frm, orient="horizontal").grid(
-        row=linha, column=0, sticky="we", pady=(10, 2)); linha += 1
-    lbl_extras = ttk.Label(frm, text="Filtros extras (somente OLX)")
-    lbl_extras.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
-
-    frm_extra = ttk.Frame(frm)
-    frm_extra.grid(row=linha, column=0, sticky="we"); linha += 1
-    ttk.Label(frm_extra, text="Ano de").grid(row=0, column=0, sticky="w")
-    ent_ano_min = ttk.Entry(frm_extra, width=8, validate="key",
+    # -------------------------- filtros extras --------------------------
+    sec_extras = ui_tema.secao(frm, "Filtros extras")
+    sec_extras.columnconfigure(5, weight=1)
+    ttk.Label(sec_extras, text="Ano de").grid(row=0, column=0, sticky="w")
+    ent_ano_min = ttk.Entry(sec_extras, width=7, validate="key",
                             validatecommand=vcmd)
-    ent_ano_min.grid(row=0, column=1, padx=(4, 10))
-    ttk.Label(frm_extra, text="ate").grid(row=0, column=2, sticky="w")
-    ent_ano_max = ttk.Entry(frm_extra, width=8, validate="key",
+    ent_ano_min.grid(row=0, column=1, padx=(4, 8))
+    ttk.Label(sec_extras, text="até").grid(row=0, column=2, sticky="w")
+    ent_ano_max = ttk.Entry(sec_extras, width=7, validate="key",
                             validatecommand=vcmd)
-    ent_ano_max.grid(row=0, column=3, padx=(4, 10))
-    ttk.Label(frm_extra, text="KM ate").grid(row=0, column=4, sticky="w")
-    ent_km_max = ttk.Entry(frm_extra, width=10, validate="key",
+    ent_ano_max.grid(row=0, column=3, padx=(4, 8))
+    ttk.Label(sec_extras, text="KM até").grid(row=0, column=4, sticky="w")
+    ent_km_max = ttk.Entry(sec_extras, width=9, validate="key",
                            validatecommand=vcmd)
-    ent_km_max.grid(row=0, column=5, padx=(4, 0))
-
-    lbl_cambio = ttk.Label(frm, text="Cambio (somente OLX)")
-    lbl_cambio.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
-    cmb_cambio = ttk.Combobox(frm, state="readonly",
+    ent_km_max.grid(row=0, column=5, padx=(4, 0), sticky="w")
+    ttk.Label(sec_extras, text="Câmbio").grid(row=1, column=0, sticky="w",
+                                              pady=(6, 0))
+    cmb_cambio = ttk.Combobox(sec_extras, state="readonly", width=18,
                               values=["Qualquer", "Manual", "Automático",
                                       "Semi-Automático", "Automatizado"])
     cmb_cambio.set("Qualquer")
-    cmb_cambio.grid(row=linha, column=0, sticky="we"); linha += 1
+    cmb_cambio.grid(row=1, column=1, columnspan=3, sticky="w", pady=(6, 0))
+    linha_extras = linha
+    linha += 1
 
-    lbl_contato = ttk.Label(frm, text="Seus dados de contato (somente iCarros)")
-    lbl_contato.grid(row=linha, column=0, sticky="w", pady=(6, 0)); linha += 1
-    ttk.Label(frm, text="Não são salvos: só o processo do bot os recebe, "
-                        "e somem quando ele termina.",
-              foreground="#b26a00", wraplength=430).grid(
-        row=linha, column=0, sticky="w"); linha += 1
-    frm_contato = ttk.Frame(frm)
-    frm_contato.grid(row=linha, column=0, sticky="we"); linha += 1
-    ttk.Label(frm_contato, text="Nome").grid(row=0, column=0, sticky="w")
-    ent_nome = ttk.Entry(frm_contato, width=14)
-    ent_nome.grid(row=0, column=1, padx=(4, 8))
-    ttk.Label(frm_contato, text="E-mail").grid(row=0, column=2, sticky="w")
-    ent_email = ttk.Entry(frm_contato, width=18)
-    ent_email.grid(row=0, column=3, padx=(4, 8))
-    ttk.Label(frm_contato, text="Telefone").grid(row=1, column=0, sticky="w",
-                                                 pady=(4, 0))
-    ent_telefone = ttk.Entry(frm_contato, width=14)
-    ent_telefone.grid(row=1, column=1, padx=(4, 8), pady=(4, 0))
-    ttk.Label(frm_contato, text="CPF").grid(row=1, column=2, sticky="w",
-                                            pady=(4, 0))
-    ent_cpf = ttk.Entry(frm_contato, width=18)
-    ent_cpf.grid(row=1, column=3, padx=(4, 8), pady=(4, 0))
+    # ------------------------ dados de contato -------------------------
+    sec_contato = ui_tema.secao(frm, "Seus dados de contato")
+    sec_contato.columnconfigure(1, weight=1)
+    sec_contato.columnconfigure(3, weight=1)
+    ui_tema.dica(sec_contato,
+                 "O formulário do anúncio envia estes dados ao vendedor. "
+                 "Nada é gravado em disco: vai só para o processo do bot e "
+                 "some quando ele termina.", largura=390).grid(
+        row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+    ttk.Label(sec_contato, text="Nome").grid(row=1, column=0, sticky="w")
+    ent_nome = ttk.Entry(sec_contato, width=16)
+    ent_nome.grid(row=1, column=1, sticky="we", padx=(4, 8), pady=2)
+    ttk.Label(sec_contato, text="E-mail").grid(row=1, column=2, sticky="w")
+    ent_email = ttk.Entry(sec_contato, width=18)
+    ent_email.grid(row=1, column=3, sticky="we", padx=(4, 0), pady=2)
+    ttk.Label(sec_contato, text="Telefone").grid(row=2, column=0, sticky="w")
+    ent_telefone = ttk.Entry(sec_contato, width=16)
+    ent_telefone.grid(row=2, column=1, sticky="we", padx=(4, 8), pady=2)
+    ttk.Label(sec_contato, text="CPF").grid(row=2, column=2, sticky="w")
+    ent_cpf = ttk.Entry(sec_contato, width=18)
+    ent_cpf.grid(row=2, column=3, sticky="we", padx=(4, 0), pady=2)
+    linha_contato = linha
+    linha += 1
 
-    ttk.Separator(frm, orient="horizontal").grid(
-        row=linha, column=0, sticky="we", pady=(4, 6)); linha += 1
-
-    campo("Mensagem que o bot vai enviar")
-    txt_msg = tk.Text(frm, height=3)
-    txt_msg.grid(row=linha, column=0, sticky="we"); linha += 1
-
+    # ------------------------------ mensagem ----------------------------
+    sec_msg = ui_tema.secao(frm, "Mensagem enviada ao vendedor")
+    sec_msg.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    sec_msg.columnconfigure(0, weight=1)
+    txt_msg = tk.Text(sec_msg, height=3, relief="solid", borderwidth=1,
+                      font=(ui_tema.FONTE, 9), wrap="word")
+    txt_msg.grid(row=0, column=0, sticky="we")
     var_dry = tk.IntVar(value=1)
-    ttk.Checkbutton(frm, text="Modo teste (dry-run) - nao envia, so simula",
-                    variable=var_dry).grid(row=linha, column=0, sticky="w",
-                                           pady=6); linha += 1
+    ttk.Checkbutton(sec_msg, variable=var_dry,
+                    text="Modo teste (dry-run) — preenche, mas não envia").grid(
+        row=1, column=0, sticky="w", pady=(6, 0))
 
-    botoes = ttk.Frame(frm)
-    botoes.grid(row=linha, column=0, sticky="we", pady=4); linha += 1
-    tk.Button(botoes, text="Rodar", command=rodar,
-              bg="#2e7d32", fg="white", width=11).pack(side="left", padx=(0, 6))
-    tk.Button(botoes, text="Prosseguir", command=prosseguir,
-              bg="#1565c0", fg="white", width=13).pack(side="left", padx=(0, 6))
-    tk.Button(botoes, text="Parar", command=parar,
-              bg="#c62828", fg="white", width=11).pack(side="left")
+    # ------------------------------- ações ------------------------------
+    acoes = ttk.Frame(frm)
+    acoes.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    ui_tema.botao(acoes, "Rodar", rodar, "ok", 11).pack(side="left", padx=(0, 6))
+    ui_tema.botao(acoes, "Prosseguir", prosseguir, "destaque", 13).pack(
+        side="left", padx=(0, 6))
+    ui_tema.botao(acoes, "Parar", parar, "perigo", 11).pack(side="left")
 
-    ttk.Label(frm, text="Log do bot:").grid(row=linha, column=0, sticky="w",
-                                            pady=(8, 0)); linha += 1
-    txt_log = tk.Text(frm, height=10, bg="#0d1117", fg="#d6deeb")
-    txt_log.grid(row=linha, column=0, sticky="we"); linha += 1
+    # -------------------------------- log -------------------------------
+    sec_log = ui_tema.secao(frm, "Log do bot")
+    sec_log.grid(row=linha, column=0, sticky="we"); linha += 1
+    sec_log.columnconfigure(0, weight=1)
+    txt_log = ui_tema.caixa_log(sec_log, altura=10)
+    txt_log.grid(row=0, column=0, sticky="we")
 
     status = tk.StringVar(value="Pronto. Preencha os campos e clique em Rodar.")
-    ttk.Label(frm, textvariable=status, foreground="#555",
-              wraplength=430).grid(row=linha, column=0, sticky="w", pady=(8, 0))
+    ttk.Label(frm, textvariable=status, style="Suave.TLabel",
+              wraplength=420).grid(row=linha, column=0, sticky="w", pady=(8, 0))
 
+    # ------------- mostrar/esconder conforme o site escolhido ------------
     def atualizar_campos_do_site(*_):
-        """Cada site aceita filtros diferentes: o que o site escolhido nao usa
-        fica desabilitado, em vez de dar a impressao de que sera aplicado.
-        - Facebook: filtra por CEP + raio em km; nao tem ano/km/cambio.
-        - OLX: filtra por estado (derivado do CEP) e tem ano/km/cambio.
-        - iCarros: exige seus dados de contato no formulario do anuncio.
-        """
+        """Some com o que o site não usa, em vez de deixar campo cinza."""
         site = site_escolhido()
-        olx = site == "olx"
-        icarros = site == "icarros"
-        estados = estados_por_site(site)
+        usa = campos_do_site(site)
 
-        for entrada in (ent_ano_min, ent_ano_max, ent_km_max):
-            entrada.configure(state=estados["extras"])
-        cmb_cambio.configure(state=estados["cambio"])
-        cmb_raio.configure(state=estados["raio"])
-        for entrada in (ent_nome, ent_email, ent_telefone, ent_cpf):
-            entrada.configure(state=estados["contato"])
-
-        lbl_raio.configure(
-            text=("Raio (km) - este site nao usa raio" if (olx or icarros)
-                  else "Raio (km)"),
-            foreground=CINZA if (olx or icarros) else PRETO)
-        for rotulo, texto in ((lbl_extras, "Filtros extras"),
-                              (lbl_cambio, "Cambio")):
-            rotulo.configure(
-                text=texto if olx else f"{texto} - somente OLX",
-                foreground=PRETO if olx else CINZA)
-        lbl_contato.configure(
-            text=("Seus dados de contato (o anuncio do iCarros exige)"
-                  if icarros else "Seus dados de contato - somente iCarros"),
-            foreground=PRETO if icarros else CINZA)
-
-        if olx:
-            dica = ("OLX: a regiao vem do estado do CEP (a OLX nao tem raio em "
-                    "km) e o chat exige login. Rode poucos anuncios por vez: a "
-                    "OLX bloqueia navegacao automatizada insistente.")
-        elif icarros:
-            dica = ("iCarros: escreva MARCA e MODELO em Produto (ex.: "
-                    "'chevrolet onix'). Nao exige login, mas o formulario do "
-                    "anuncio manda seu nome/e-mail/telefone ao vendedor. A "
-                    "regiao vem do estado do CEP e o preco e filtrado pelo bot.")
-        elif site == "webmotors":
-            dica = ("Webmotors: o formulario do anuncio manda seu "
-                    "nome/e-mail/telefone ao vendedor. Nao filtra por regiao "
-                    "nesta versao e pode pedir 'Pressione e segure' — o bot "
-                    "espera voce resolver na janela.")
+        if usa["raio"]:
+            lbl_raio.grid()
+            cmb_raio.grid()
         else:
-            dica = "Facebook: filtra por CEP + raio em km."
-        lbl_site_dica.configure(text=dica)
+            lbl_raio.grid_remove()
+            cmb_raio.grid_remove()
+
+        for secao_alvo, visivel, onde in (
+                (sec_extras, usa["extras"], linha_extras),
+                (sec_contato, usa["contato"], linha_contato)):
+            if visivel:
+                secao_alvo.grid(row=onde, column=0, sticky="we", pady=(0, 8))
+            else:
+                secao_alvo.grid_remove()
+
+        lbl_site_dica.configure(text=DICAS.get(site, ""))
 
     cmb_site.bind("<<ComboboxSelected>>", atualizar_campos_do_site)
     atualizar_campos_do_site()   # estado inicial (Facebook)
 
-    frm.columnconfigure(0, weight=1)
-    drenar_log()      # inicia o polling do log
+    drenar_log()
     root.mainloop()
     return resultado["acao"]
 

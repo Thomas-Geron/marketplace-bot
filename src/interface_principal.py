@@ -11,6 +11,34 @@ O app fica num laço: cada tela devolve "voltar" (o seletor reaparece) ou
 import tkinter as tk
 from tkinter import ttk
 
+import ui_tema
+
+
+def _cartao(pai, titulo, descricao, comando, cor):
+    """Bloco clicável de um modo: título grande + explicação embaixo."""
+    quadro = tk.Frame(pai, bg=ui_tema.CORES["cartao"], cursor="hand2",
+                      highlightbackground=ui_tema.CORES["borda"],
+                      highlightthickness=1)
+    quadro.pack(fill="x", pady=(0, 10))
+
+    faixa = tk.Frame(quadro, bg=ui_tema.CORES[cor], width=5)
+    faixa.pack(side="left", fill="y")
+
+    interno = tk.Frame(quadro, bg=ui_tema.CORES["cartao"], padx=14, pady=12)
+    interno.pack(side="left", fill="both", expand=True)
+    tk.Label(interno, text=titulo, bg=ui_tema.CORES["cartao"],
+             fg=ui_tema.CORES["titulo"], font=(ui_tema.FONTE, 11, "bold"),
+             anchor="w").pack(fill="x")
+    tk.Label(interno, text=descricao, bg=ui_tema.CORES["cartao"],
+             fg=ui_tema.CORES["suave"], font=(ui_tema.FONTE, 9),
+             anchor="w", justify="left", wraplength=330).pack(fill="x",
+                                                              pady=(2, 0))
+
+    # o cartão inteiro clica, não só o texto
+    for alvo in (quadro, interno, *interno.winfo_children()):
+        alvo.bind("<Button-1>", lambda _e: comando())
+    return quadro
+
 
 def escolher_modo():
     """Mostra o seletor. Retorna 'compra', 'venda' ou None (fechou a janela)."""
@@ -18,30 +46,35 @@ def escolher_modo():
 
     root = tk.Tk()
     root.title("MarketplaceBot")
-    root.geometry("380x240")
+    root.geometry("400x300")
     root.resizable(False, False)
+    ui_tema.aplicar_tema(root)
 
-    frm = ttk.Frame(root, padding=20)
+    frm = ttk.Frame(root, padding=18)
     frm.pack(fill="both", expand=True)
 
+    ttk.Label(frm, text="MarketplaceBot",
+              style="Titulo.TLabel").pack(anchor="w")
     ttk.Label(frm, text="O que você quer fazer?",
-              font=("Segoe UI", 13, "bold")).pack(pady=(0, 16))
+              style="Suave.TLabel").pack(anchor="w", pady=(0, 14))
 
     def selecionar(modo):
         escolha["modo"] = modo
         root.destroy()
 
-    tk.Button(
-        frm, text="🛒  Compra\nbuscar anúncios e enviar mensagens",
-        command=lambda: selecionar("compra"),
-        bg="#2e7d32", fg="white", font=("Segoe UI", 10), height=3,
-    ).pack(fill="x", pady=(0, 10))
+    _cartao(frm, "Compra",
+            "Busca anúncios nos sites e envia mensagens aos vendedores.",
+            lambda: selecionar("compra"), "ok")
+    _cartao(frm, "Venda / Anúncio",
+            "Anuncia os veículos do seu banco nos sites escolhidos.",
+            lambda: selecionar("venda"), "destaque")
 
-    tk.Button(
-        frm, text="📢  Venda / Anúncio\nanunciar veículos do seu banco nos sites",
-        command=lambda: selecionar("venda"),
-        bg="#1565c0", fg="white", font=("Segoe UI", 10), height=3,
-    ).pack(fill="x")
+    try:
+        from version import __version__
+        ttk.Label(frm, text=f"versão {__version__}",
+                  style="Suave.TLabel").pack(anchor="e", side="bottom")
+    except Exception:
+        pass
 
     root.mainloop()
     return escolha["modo"]
