@@ -35,21 +35,21 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CAMINHO_PARAMS = str(get_parametros_path())
 
 # Sites oferecidos na Compra (rotulo -> id usado no parametros.json).
-# A OLX saiu da lista a pedido do usuario (jul/2026): ela bloqueia a
-# navegacao automatizada (Cloudflare 1020) e o bot nao disfarca isso.
-# Para voltar, basta reincluir ("OLX", "olx") aqui — src/compra_olx.py
-# continua pronto e calibrado.
+# A OLX voltou (ago/2026) rodando no Microsoft Edge aberto normalmente —
+# era o navegador sob automacao que o Cloudflare barrava (ver navegador.py).
 SITES_COMPRA = [
     ("Facebook Marketplace", "facebook"),
     ("iCarros", "icarros"),
     ("Webmotors", "webmotors"),
+    ("OLX", "olx"),
 ]
 
 DICAS = {
     "facebook": "Filtra por CEP e raio em km.",
-    "olx": ("A região vem do estado do CEP (a OLX não tem raio em km) e o "
-            "chat exige login. Rode poucos anúncios por vez: a OLX bloqueia "
-            "navegação automatizada insistente."),
+    "olx": ("Roda no Microsoft Edge do computador (aberto normalmente) — é "
+            "o navegador sob automação que a OLX bloqueia. A região vem do "
+            "estado do CEP (a OLX não tem raio em km) e o chat exige login "
+            "no Edge. Rode poucos anúncios por vez."),
     "icarros": ("Escreva MARCA e MODELO em Produto (ex.: 'chevrolet onix'). "
                 "Não exige login, mas o formulário do anúncio envia seu "
                 "nome/e-mail/telefone ao vendedor. A região vem do estado do "

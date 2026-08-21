@@ -132,13 +132,23 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   "Pular"). Os campos de marca/modelo/etc. **repetem `id="autocomplete"`**,
   então a âncora é `label:text-is("<rótulo>") + xpath=following::input[1]`,
   e as opções são MUI (`li[role="option"]` com o texto num `<p>`).
-- Compra multi-site: **OLX calibrada** com captura real (jul/2026) —
-  cards `a[data-testid="adcard-link"]`, chat por `button:has-text("Chat")`,
-  filtros do painel por id (`mileage_*`, `regdate_*`, `price_*`) e
-  **região por subdomínio de UF** derivada do CEP (a OLX não tem raio em
-  km), com fallback para busca nacional. A OLX **bloqueia** navegação
-  automatizada insistente (Cloudflare): o bot detecta e para com aviso —
-  nunca tentar contornar; rodar menos anúncios por vez.
+- Compra multi-site: **OLX volta a funcionar** (ago/2026) rodando no
+  **Microsoft Edge do computador**, iniciado como um atalho comum e
+  dirigido por CDP (`navegador.abrir_navegador(pw, "edge")`, perfil
+  próprio `perfil_edge`): o que o Cloudflare barrava era o navegador
+  iniciado pelo Playwright (`navigator.webdriver`), não a marca. Nada é
+  mascarado — se aparecer verificação, o bot para e espera o usuário.
+  Três correções que vieram desse teste:
+  **(a)** a região da busca é SEGMENTO DE CAMINHO (`/estado-rj`), não
+  subdomínio — `rj.olx.com.br` redireciona a busca para a home;
+  **(b)** nada de seletor genérico tipo `section a[href*="olx.com.br"]`:
+  fora da página de resultados ele casa o menu inteiro e o bot "abre
+  anúncios" que são links da home (os links coletados agora precisam
+  terminar em `-<id numérico>`);
+  **(c)** o chat do anúncio é `#price-box-button-chat` — `button:has-text
+  ("Chat")` casava com o "Chat" do MENU do site.
+  O campo de mensagem do chat só aparece logado (o bot procura também
+  dentro dos iframes e avisa quando a sessão está deslogada).
 - Compra em **fila**: o campo Produtos aceita um nome por linha e o bot
   faz um de cada vez, do começo ao fim, na mesma sessão do navegador. A
   **quantidade máxima vale POR NOME** (não é dividida entre eles) — quem

@@ -22,12 +22,14 @@ Calibrado com capturas reais da OLX (jul/2026):
 
 A OLX barra o navegador AUTOMATIZADO: a mesma URL abre normalmente num
 navegador comum, mas o Cloudflare reconhece os sinais de automação do
-Playwright. O bot NÃO mascara esses sinais; quando detecta o bloqueio ele
-deixa a janela aberta para VOCÊ resolver a verificação e clicar em
-'Prosseguir' (mesmo mecanismo do login), e só então continua. Rodar
-poucos anúncios por vez reduz a chance de cair na verificação.
+Playwright. Por isso a OLX roda no **Microsoft Edge do computador**,
+iniciado como um atalho qualquer e dirigido pelo DevTools (CDP) — sessão
+comum de navegador, sem flags de automação (ver navegador.py). Nada é
+mascarado: se ainda assim aparecer verificação, o bot para e espera VOCÊ
+resolver na janela. Rodar poucos anúncios por vez continua ajudando.
 """
 import random
+import re
 import sys
 import time
 import urllib.parse
@@ -44,13 +46,18 @@ from venda.sites.base import (
 
 CAMINHO_BUSCA = "/autos-e-pecas/carros-vans-e-utilitarios"
 
-# candidatos de seletor dos cards de anúncio (o primeiro é o atual)
+# candidatos de seletor dos cards de anúncio (o primeiro é o atual).
+# NÃO usar algo genérico como `section a[href*="olx.com.br"]`: numa página
+# que não é a de resultados isso casa com o menu inteiro e o bot sai
+# "abrindo anúncios" que na verdade são links da home.
 SEL_CARDS = [
     'a[data-testid="adcard-link"]',
     'a[data-ds-component="DS-NewAdCard-Link"]',
     'section[data-ds-component="DS-AdCard"] a[href]',
-    'section a[href*="olx.com.br"]',
 ]
+
+# link de anúncio termina com o id numérico: .../chevrolet-onix-2013-1463780413
+PADRAO_ANUNCIO = re.compile(r"-\d{6,}$")
 
 # faixas de CEP por estado → subdomínio da OLX (a OLX regionaliza por UF)
 _FAIXAS_CEP = [
@@ -83,15 +90,21 @@ def uf_do_cep(cep):
 
 
 def montar_url_busca(p, uf=None):
-    """URL da busca de carros: subdomínio da UF (quando houver) + filtros
-    de preço, que a OLX aceita na própria URL (ps/pe)."""
-    host = f"https://{uf}.olx.com.br" if uf else "https://www.olx.com.br"
+    """URL da busca de carros.
+
+    A região é um SEGMENTO DE CAMINHO (`/estado-rj`), não subdomínio: o
+    `rj.olx.com.br` existe para anúncios antigos, mas numa busca ele
+    redireciona para a home — foi o que fez o bot coletar links da home
+    em vez de anúncios.
+    """
+    host = "https://www.olx.com.br"
+    caminho = CAMINHO_BUSCA + (f"/estado-{uf}" if uf else "")
     query = {"q": p.produto}
     if p.preco_min is not None:
         query["ps"] = str(p.preco_min)
     if p.preco_max is not None:
         query["pe"] = str(p.preco_max)
-    return host + CAMINHO_BUSCA + "?" + urllib.parse.urlencode(query)
+    return host + caminho + "?" + urllib.parse.urlencode(query)
 
 
 def _busca_do_produto(p, produto):
@@ -180,16 +193,87 @@ def carregar_e_coletar(pagina):
         href = href.split("#")[0].split("?")[0]
         if "olx.com.br" not in href or href in vistos:
             continue
+        if not PADRAO_ANUNCIO.search(href):
+            continue   # link de menu/serviço, não anúncio
         vistos.add(href)
         links.append(href)
     return links
 
 
+SEL_CAMPO_CHAT = [
+    'textarea[placeholder*="mensagem" i]',
+    '[contenteditable="true"]',
+    "textarea",
+]
+
+
+def _escrever_no_chat(pagina, mensagem):
+    """Escreve no campo do chat, esteja ele na página ou num iframe.
+
+    O anúncio da OLX carrega quase 20 iframes e o chat costuma abrir
+    dentro de um deles — procurar só na página principal dá "campo não
+    encontrado" mesmo com o chat aberto na tela.
+    """
+    if preencher_campo(pagina, SEL_CAMPO_CHAT, mensagem, "mensagem do chat"):
+        return True
+    for quadro in pagina.frames:
+        if quadro == pagina.main_frame:
+            continue
+        for sel in SEL_CAMPO_CHAT:
+            try:
+                campo = quadro.locator(sel).first
+                if campo.count() == 0 or not campo.is_visible():
+                    continue
+                campo.fill(str(mensagem))
+                print("  OK mensagem do chat: preenchida (dentro de um iframe)")
+                return True
+            except Exception:
+                continue
+    return False
+
+
+def _deslogado(pagina):
+    """True se o cabeçalho ainda oferece 'Entrar' — sem conta, o chat da
+    OLX não abre, e o motivo real não é 'campo não encontrado'."""
+    for sel in ('a:text-is("Entrar")', 'button:text-is("Entrar")',
+                'span:text-is("Entrar")'):
+        try:
+            alvo = pagina.locator(sel).first
+            if alvo.count() and alvo.is_visible():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _parece_pedir_login(pagina):
+    """True quando o que abriu foi a tela de acesso, e não o chat."""
+    marcas = ("entrar sem senha", "esqueci a minha senha", "acesse sua conta",
+              "entrar na conta", "faça login")
+    try:
+        corpo = (pagina.locator("body").inner_text(timeout=4000) or "").lower()
+    except Exception:
+        return False
+    if any(m in corpo for m in marcas):
+        return True
+    for quadro in pagina.frames:
+        try:
+            texto = (quadro.locator("body").inner_text(timeout=2000) or "").lower()
+        except Exception:
+            continue
+        if any(m in texto for m in marcas):
+            return True
+    return False
+
+
 def enviar_mensagem_olx(pagina, mensagem, dry_run):
     """Abre o chat do anúncio e digita (dry-run) ou envia a mensagem.
     Retorna True somente se a mensagem foi ENVIADA de verdade."""
+    # #price-box-button-chat é o chat DO ANÚNCIO. Não usar
+    # `button:has-text("Chat")`: isso casa com o "Chat" do menu do site, e o
+    # bot clicava no cabeçalho achando que tinha aberto a conversa.
     if not clicar(pagina, [
-        'button:has-text("Chat")',
+        "#price-box-button-chat",
         '[data-testid*="chat" i]',
         'a[href*="/chat"]',
         'button:has-text("Enviar mensagem")',
@@ -197,12 +281,12 @@ def enviar_mensagem_olx(pagina, mensagem, dry_run):
         dump_diagnostico(pagina, "olx-compra", "sem-botao-chat")
         return False
     pagina.wait_for_timeout(2500)
-    if not preencher_campo(pagina, [
-        'textarea[placeholder*="mensagem" i]',
-        '[contenteditable="true"]',
-        "textarea",
-    ], mensagem, "mensagem do chat"):
+    if not _escrever_no_chat(pagina, mensagem):
         dump_diagnostico(pagina, "olx-compra", "sem-campo-mensagem")
+        if _parece_pedir_login(pagina) or _deslogado(pagina):
+            print("  ! o chat da OLX exige conta e esta sessão está "
+                  "deslogada. Entre na OLX na janela do Edge que o bot abriu "
+                  "e rode de novo — a sessão fica salva no perfil do bot.")
         return False
     time.sleep(3)  # tempo para conferir no navegador
     if dry_run:
@@ -296,7 +380,10 @@ def executar(p):
         print("OLX — CEP não reconhecido: busca nacional")
 
     with sync_playwright() as pw:
-        contexto, pagina = abrir_navegador(pw)
+        # Edge iniciado NORMALMENTE (sem flags de automação) e dirigido por
+        # CDP: é isso que evita o bloqueio do Cloudflare, não a marca do
+        # navegador. Ver navegador.py.
+        contexto, pagina = abrir_navegador(pw, "edge")
         pagina.set_default_timeout(120000)
 
         # histórico compartilhado pela fila: anúncio já contatado não volta
