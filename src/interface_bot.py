@@ -121,8 +121,13 @@ def iniciar():
             status.set("O bot já está rodando.")
             return
 
+        produtos = [nome.strip() for nome in
+                    txt_produtos.get("1.0", "end").splitlines() if nome.strip()]
         params = {
-            "produto":    ent_produto.get().strip(),
+            # a fila; `produto` fica como o primeiro por compatibilidade com
+            # parametros.json antigos
+            "produtos":   produtos,
+            "produto":    produtos[0] if produtos else "",
             "preco_min":  ent_min.get().strip(),
             "preco_max":  ent_max.get().strip(),
             "cep":        ent_cep.get().strip(),
@@ -136,8 +141,8 @@ def iniciar():
             "km_max":     ent_km_max.get().strip(),
             "cambio":     cmb_cambio.get(),
         }
-        if not params["produto"] or not params["mensagem"]:
-            status.set("Erro: Produto e Mensagem são obrigatórios.")
+        if not produtos or not params["mensagem"]:
+            status.set("Erro: informe ao menos um produto e a mensagem.")
             return
 
         # dados pessoais NÃO entram no JSON: vão só no ambiente do processo
@@ -222,22 +227,30 @@ def iniciar():
     sec_busca.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
     sec_busca.columnconfigure(1, weight=1)
 
-    ttk.Label(sec_busca, text="Produto").grid(row=0, column=0, sticky="w")
-    ent_produto = ttk.Entry(sec_busca)
-    ent_produto.grid(row=0, column=1, columnspan=3, sticky="we", pady=2)
+    ttk.Label(sec_busca, text="Produtos").grid(row=0, column=0, sticky="nw",
+                                               pady=(2, 0))
+    txt_produtos = tk.Text(sec_busca, height=3, relief="solid", borderwidth=1,
+                           font=(ui_tema.FONTE, 9), wrap="none")
+    txt_produtos.grid(row=0, column=1, columnspan=3, sticky="we", pady=2)
+    ttk.Label(sec_busca,
+              text="Um por linha — o bot faz a fila em ordem, terminando um "
+                   "nome antes de começar o próximo.",
+              style="Suave.TLabel", wraplength=360, justify="left").grid(
+        row=1, column=0, columnspan=4, sticky="w", pady=(0, 6))
 
-    ttk.Label(sec_busca, text="Preço de").grid(row=1, column=0, sticky="w")
+    ttk.Label(sec_busca, text="Preço de").grid(row=2, column=0, sticky="w")
     ent_min = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
-    ent_min.grid(row=1, column=1, sticky="w", padx=(0, 8), pady=2)
-    ttk.Label(sec_busca, text="até").grid(row=1, column=2, sticky="e")
+    ent_min.grid(row=2, column=1, sticky="w", padx=(0, 8), pady=2)
+    ttk.Label(sec_busca, text="até").grid(row=2, column=2, sticky="e")
     ent_max = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
-    ent_max.grid(row=1, column=3, sticky="w", pady=2)
+    ent_max.grid(row=2, column=3, sticky="w", pady=2)
 
-    ttk.Label(sec_busca, text="Quantidade").grid(row=2, column=0, sticky="w")
+    ttk.Label(sec_busca, text="Quantidade").grid(row=3, column=0, sticky="w")
     ent_qtd = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
-    ent_qtd.grid(row=2, column=1, sticky="w", pady=2)
-    ttk.Label(sec_busca, text="vazio = todos",
-              style="Suave.TLabel").grid(row=2, column=2, columnspan=2, sticky="w")
+    ent_qtd.grid(row=3, column=1, sticky="w", pady=2)
+    ttk.Label(sec_busca, text="por produto (vazio = todos)",
+              style="Suave.TLabel").grid(row=3, column=2, columnspan=2,
+                                         sticky="w")
 
     # ------------------------------ região ------------------------------
     sec_regiao = ui_tema.secao(frm, "Região")

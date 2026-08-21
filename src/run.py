@@ -32,7 +32,9 @@ def carregar_parametros(caminho=None):
     pessoais = contato.do_ambiente()
 
     return Parametros(
-        produto=dados["produto"],
+        produto=dados.get("produto", ""),
+        # fila de produtos: o bot faz um nome por vez, do começo ao fim
+        produtos=dados.get("produtos") or [],
         cep=dados["cep"],  # agora será normalizado automaticamente
         raio_km=int(dados["raio_km"]),
         mensagem=dados["mensagem"],
@@ -92,6 +94,12 @@ def _executar():
         executar(p)
         return
 
+    fila = p.produtos
+    if len(fila) > 1:
+        print(f"Fila de {len(fila)} produto(s): {', '.join(fila)}")
+        if p.quantidade:
+            print(f"Até {p.quantidade} anúncio(s) POR PRODUTO.")
+
     with sync_playwright() as pw:
         contexto, pagina = abrir_navegador(pw)
         pagina.set_default_timeout(120000)
@@ -101,83 +109,96 @@ def _executar():
         esperar_prosseguir("Faça o login no navegador e clique em 'Prosseguir'.")
         pause(3)
 
-        print("Iniciando filtros...")
-        pause(2)
-
-        pesquisar_produto(pagina, p.produto)
-        pause(3)
-
-        aplicar_localizacao(pagina, p.cep, p.raio_km)
-        pause(3)
-
-        aplicar_preco(pagina, p.preco_min, p.preco_max)
-        pause(3)
-
-        carregar_todos(pagina)
-
-        links = coletar_links(pagina)
-
         visitados = carregar_visitados()
-
         urls_visitadas = {item["url"] for item in visitados}
 
-        links = [
-            link
-            for link in links
-            if link not in urls_visitadas
-        ]
+        for posicao, produto in enumerate(fila, start=1):
+            if len(fila) > 1:
+                print(f"\n=== produto {posicao}/{len(fila)}: {produto} ===")
 
-        total = len(links)
+            if posicao > 1:
+                # depois do último anúncio a página está na tela do post;
+                # volta para a busca antes de procurar o próximo nome
+                pagina.goto(config.URL_BUSCA)
+                pause(3)
 
-        alvo = calcular_alvo(total, p.quantidade)
-        
+            print("Iniciando filtros...")
+            pause(2)
 
-        print(f"Encontrados {total} posts. Vou processar {alvo}.")
-        pause(2)
-        print("Garantindo início da lista...")
+            pesquisar_produto(pagina, produto)
+            pause(3)
 
-        # tenta resetar scroll principal
-        pagina.evaluate("window.scrollTo(0, 0)")
-        pagina.wait_for_timeout(1000)
+            if posicao == 1:
+                # a localização é um filtro global do Marketplace: vale para
+                # as buscas seguintes, e reabrir o modal a cada produto só
+                # aumentaria a chance de falhar
+                aplicar_localizacao(pagina, p.cep, p.raio_km)
+                pause(3)
 
-        # força scroll extremo para cima várias vezes (UI tipo Facebook precisa disso)
-        for _ in range(3):
-            pagina.mouse.wheel(0, -5000)
-            pagina.wait_for_timeout(800)
+            aplicar_preco(pagina, p.preco_min, p.preco_max)
+            pause(3)
 
-            
-        for i, link in enumerate(links[:alvo]):
+            carregar_todos(pagina)
 
-            print(f"[{i+1}/{alvo}] abrindo post...")
+            links = coletar_links(pagina)
 
-            pagina.goto(link)
+            links = [
+                link
+                for link in links
+                if link not in urls_visitadas
+            ]
 
-            pagina.wait_for_load_state("domcontentloaded")
+            total = len(links)
 
-            pausa_humana(1, 2)
+            alvo = calcular_alvo(total, p.quantidade)
 
-            enviar_mensagem(pagina, p.mensagem, p.dry_run)
 
-            if not p.dry_run and link not in urls_visitadas:
+            print(f"Encontrados {total} posts. Vou processar {alvo}.")
+            pause(2)
+            print("Garantindo início da lista...")
 
-                registro = {
-                    "url": link,
-                    "produto": p.produto,
-                    "cep": p.cep,
-                    "mensagem": p.mensagem,
-                    "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
+            # tenta resetar scroll principal
+            pagina.evaluate("window.scrollTo(0, 0)")
+            pagina.wait_for_timeout(1000)
 
-                visitados.append(registro)
+            # força scroll extremo para cima várias vezes (UI tipo Facebook precisa disso)
+            for _ in range(3):
+                pagina.mouse.wheel(0, -5000)
+                pagina.wait_for_timeout(800)
 
-                # Atualiza o conjunto para evitar duplicatas na mesma execução
-                urls_visitadas.add(link)
 
-                salvar_visitados(visitados)
+            for i, link in enumerate(links[:alvo]):
 
-                
+                print(f"[{i+1}/{alvo}] abrindo post...")
 
-                pausa_humana(2, 3)
+                pagina.goto(link)
+
+                pagina.wait_for_load_state("domcontentloaded")
+
+                pausa_humana(1, 2)
+
+                enviar_mensagem(pagina, p.mensagem, p.dry_run)
+
+                if not p.dry_run and link not in urls_visitadas:
+
+                    registro = {
+                        "url": link,
+                        "produto": produto,
+                        "cep": p.cep,
+                        "mensagem": p.mensagem,
+                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+
+                    visitados.append(registro)
+
+                    # Atualiza o conjunto para evitar duplicatas na mesma execução
+                    urls_visitadas.add(link)
+
+                    salvar_visitados(visitados)
+
+
+
+                    pausa_humana(2, 3)
 
         print("Concluído.")
         contexto.close()

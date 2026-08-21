@@ -94,6 +94,18 @@ def montar_url_busca(p, uf=None):
     return host + CAMINHO_BUSCA + "?" + urllib.parse.urlencode(query)
 
 
+def _busca_do_produto(p, produto):
+    """Cópia rasa dos parâmetros com o produto da vez — `montar_url_busca`
+    lê `produto`, e a fila troca esse nome a cada volta."""
+    class _Busca:
+        pass
+    copia = _Busca()
+    copia.produto = produto
+    copia.preco_min = p.preco_min
+    copia.preco_max = p.preco_max
+    return copia
+
+
 def pausa_humana(min_seg=1.0, max_seg=2.5):
     time.sleep(random.uniform(min_seg, max_seg))
 
@@ -267,85 +279,102 @@ def executar(p):
         except Exception:
             pass
 
+    fila = list(p.produtos)
+    if not fila:
+        print("OLX: informe ao menos um produto.")
+        return
+    if len(fila) > 1:
+        print(f"Fila de {len(fila)} produto(s): {', '.join(fila)}")
+        if p.quantidade:
+            print(f"Até {p.quantidade} anúncio(s) POR PRODUTO.")
+
+    uf = uf_do_cep(p.cep)
+    if uf:
+        print(f"OLX — região pelo CEP {p.cep}: {uf.upper()} "
+              "(a OLX filtra por estado, não por raio em km)")
+    else:
+        print("OLX — CEP não reconhecido: busca nacional")
+
     with sync_playwright() as pw:
         contexto, pagina = abrir_navegador(pw)
         pagina.set_default_timeout(120000)
 
-        uf = uf_do_cep(p.cep)
-        url = montar_url_busca(p, uf)
-        if uf:
-            print(f"OLX — região pelo CEP {p.cep}: {uf.upper()} "
-                  "(a OLX filtra por estado, não por raio em km)")
-        else:
-            print("OLX — CEP não reconhecido: busca nacional")
-        print(f"OLX — busca: {url}")
-        pagina.goto(url)
-        pagina.wait_for_load_state("domcontentloaded")
-        pagina.wait_for_timeout(4000)
-        fechar_cookies(pagina)
-        esperar_formulario(pagina)
+        # histórico compartilhado pela fila: anúncio já contatado não volta
+        visitados = carregar_visitados()
+        urls_visitadas = {item["url"] for item in visitados}
 
-        barreira = _barreira_olx(pagina, "busca")
-        if barreira:
-            liberou = False
-            if "verificação" in barreira:
-                liberou = _tentar_liberar(pagina, url, contexto)
-            else:
-                _explicar_firewall()
-            if not liberou:
-                contexto.close()
-                return
-
-        # região inexistente/instável na OLX: cai para a busca nacional
-        if uf and not _melhor_seletor(pagina, SEL_CARDS)[1]:
-            url = montar_url_busca(p, None)
-            print(f"  ! nenhum anúncio na região — tentando nacional: {url}")
+        for posicao, produto in enumerate(fila, start=1):
+            busca = _busca_do_produto(p, produto)
+            url = montar_url_busca(busca, uf)
+            print("")
+            print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
+            print(f"OLX — busca: {url}")
             pagina.goto(url)
             pagina.wait_for_load_state("domcontentloaded")
             pagina.wait_for_timeout(4000)
+            fechar_cookies(pagina)
+            esperar_formulario(pagina)
 
-        aplicar_filtros(pagina, p)
+            barreira = _barreira_olx(pagina, "busca")
+            if barreira:
+                liberou = False
+                if "verificação" in barreira:
+                    liberou = _tentar_liberar(pagina, url, contexto)
+                else:
+                    _explicar_firewall()
+                if not liberou:
+                    break
 
-        esperar_prosseguir(
-            "Faça login na OLX (o chat exige conta) e clique em 'Prosseguir'.")
-        dump_diagnostico(pagina, "olx-compra", "busca")
+            # região inexistente/instável na OLX: cai para a busca nacional
+            if uf and not _melhor_seletor(pagina, SEL_CARDS)[1]:
+                url = montar_url_busca(busca, None)
+                print(f"  ! nenhum anúncio na região — tentando nacional: {url}")
+                pagina.goto(url)
+                pagina.wait_for_load_state("domcontentloaded")
+                pagina.wait_for_timeout(4000)
 
-        links = carregar_e_coletar(pagina)
-        visitados = carregar_visitados()
-        urls_visitadas = {item["url"] for item in visitados}
-        links = [link for link in links if link not in urls_visitadas]
+            aplicar_filtros(pagina, p)
 
-        total = len(links)
-        alvo = calcular_alvo(total, p.quantidade)
-        print(f"Encontrados {total} anúncios novos. Vou processar {alvo}.")
+            if posicao == 1:
+                esperar_prosseguir(
+                    "Faça login na OLX (o chat exige conta) e clique em "
+                    "'Prosseguir'.")
+                dump_diagnostico(pagina, "olx-compra", "busca")
 
-        for i, link in enumerate(links[:alvo]):
-            print(f"[{i + 1}/{alvo}] abrindo anúncio...")
-            pagina.goto(link)
-            pagina.wait_for_load_state("domcontentloaded")
-            pagina.wait_for_timeout(2500)
-            pausa_humana(1, 2)
+            links = carregar_e_coletar(pagina)
+            links = [link for link in links if link not in urls_visitadas]
 
-            if i == 0:
-                dump_diagnostico(pagina, "olx-compra", "anuncio")
-            if _barreira_olx(pagina, f"anuncio-{i + 1}"):
-                _explicar_firewall()
-                break
+            total = len(links)
+            alvo = calcular_alvo(total, p.quantidade)   # vale por produto
+            print(f"Encontrados {total} anúncios novos. Vou processar {alvo}.")
 
-            enviado = enviar_mensagem_olx(pagina, p.mensagem, p.dry_run)
+            for i, link in enumerate(links[:alvo]):
+                print(f"[{i + 1}/{alvo}] abrindo anúncio...")
+                pagina.goto(link)
+                pagina.wait_for_load_state("domcontentloaded")
+                pagina.wait_for_timeout(2500)
+                pausa_humana(1, 2)
 
-            if enviado and not p.dry_run:
-                visitados.append({
-                    "url": link,
-                    "site": "olx",
-                    "produto": p.produto,
-                    "cep": p.cep,
-                    "mensagem": p.mensagem,
-                    "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                })
-                urls_visitadas.add(link)
-                salvar_visitados(visitados)
-            pausa_humana(4, 9)
+                if posicao == 1 and i == 0:
+                    dump_diagnostico(pagina, "olx-compra", "anuncio")
+                if _barreira_olx(pagina, f"anuncio-{i + 1}"):
+                    _explicar_firewall()
+                    break
+
+                enviado = enviar_mensagem_olx(pagina, p.mensagem, p.dry_run)
+
+                if enviado and not p.dry_run:
+                    visitados.append({
+                        "url": link,
+                        "site": "olx",
+                        "produto": produto,
+                        "cep": p.cep,
+                        "mensagem": p.mensagem,
+                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+                    urls_visitadas.add(link)
+                    salvar_visitados(visitados)
+                pausa_humana(4, 9)
 
         print("Concluído.")
         contexto.close()

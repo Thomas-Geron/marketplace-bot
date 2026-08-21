@@ -198,74 +198,92 @@ def executar(p):
         except Exception:
             pass
 
-    url = montar_url_busca(p.produto)
-    if not url:
-        print("iCarros: escreva MARCA e MODELO no campo Produto "
-              f"(ex.: 'chevrolet onix'). Recebi apenas: {p.produto!r}")
-        return
     if not (p.nome_contato and p.email_contato and p.telefone_contato):
         print("iCarros: preencha Nome, E-mail e Telefone de contato na "
               "interface — o formulário do anúncio exige os três.")
         return
 
+    # o iCarros exige marca E modelo; nome com uma palavra só não vira busca
+    fila = [nome for nome in p.produtos if montar_url_busca(nome)]
+    for nome in p.produtos:
+        if not montar_url_busca(nome):
+            print(f"iCarros: '{nome}' precisa de MARCA e MODELO "
+                  "(ex.: 'chevrolet onix') — pulei este nome.")
+    if not fila:
+        return
+    if len(fila) > 1:
+        print(f"Fila de {len(fila)} produto(s): {', '.join(fila)}")
+        if p.quantidade:
+            print(f"Até {p.quantidade} anúncio(s) POR PRODUTO.")
+    if uf_do_cep(p.cep):
+        print(f"iCarros — região pelo CEP {p.cep}: "
+              f"{uf_do_cep(p.cep).upper()}")
+
     with sync_playwright() as pw:
         contexto, pagina = abrir_navegador(pw)
         pagina.set_default_timeout(120000)
 
-        print(f"iCarros — busca: {url}")
-        pagina.goto(url)
-        pagina.wait_for_load_state("domcontentloaded")
-        pagina.wait_for_timeout(5000)
-        fechar_cookies(pagina)
-
-        barreira = detectar_barreira(pagina)
-        if barreira:
-            print(f"  ! iCarros barrou o acesso ({barreira}).")
-            dump_diagnostico(pagina, "icarros-compra", "barreira")
-            contexto.close()
-            return
-
-        dump_diagnostico(pagina, "icarros-compra", "busca")
-        links = coletar_anuncios(pagina, p)
-
+        # o histórico é compartilhado pela fila inteira: um anúncio já
+        # contatado não volta só porque casou com outro nome da lista
         visitados = carregar_visitados()
         urls_visitadas = {item["url"] for item in visitados}
-        links = [link for link in links if link not in urls_visitadas]
 
-        total = len(links)
-        alvo = calcular_alvo(total, p.quantidade)
-        print(f"Encontrados {total} anúncios novos. Vou processar {alvo}.")
-
-        # o iCarros não exige login para mandar mensagem, mas a pausa
-        # mantém o mesmo ritual das outras fontes (revisar antes de enviar)
-        esperar_prosseguir(
-            "Confira a busca no navegador e clique em 'Prosseguir'.")
-
-        for i, link in enumerate(links[:alvo]):
-            print(f"[{i + 1}/{alvo}] abrindo anúncio...")
-            pagina.goto(link)
+        for posicao, produto in enumerate(fila, start=1):
+            url = montar_url_busca(produto)
+            print("")
+            print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
+            print(f"iCarros — busca: {url}")
+            pagina.goto(url)
             pagina.wait_for_load_state("domcontentloaded")
-            pagina.wait_for_timeout(4000)
+            pagina.wait_for_timeout(5000)
             fechar_cookies(pagina)
-            pausa_humana(1, 2)
 
-            if i == 0:
-                dump_diagnostico(pagina, "icarros-compra", "anuncio")
+            barreira = detectar_barreira(pagina)
+            if barreira:
+                print(f"  ! iCarros barrou o acesso ({barreira}).")
+                dump_diagnostico(pagina, "icarros-compra", "barreira")
+                break
 
-            enviado = enviar_mensagem_icarros(pagina, p, p.dry_run)
+            if posicao == 1:
+                dump_diagnostico(pagina, "icarros-compra", "busca")
+            links = coletar_anuncios(pagina, p)
+            links = [link for link in links if link not in urls_visitadas]
 
-            if enviado:
-                visitados.append({
-                    "url": link,
-                    "site": "icarros",
-                    "produto": p.produto,
-                    "cep": p.cep,
-                    "mensagem": p.mensagem,
-                    "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                })
-                urls_visitadas.add(link)
-                salvar_visitados(visitados)
-            pausa_humana(4, 9)
+            total = len(links)
+            alvo = calcular_alvo(total, p.quantidade)   # vale por produto
+            print(f"Encontrados {total} anúncios novos. Vou processar {alvo}.")
+
+            if posicao == 1:
+                # o iCarros não exige login para mandar mensagem, mas a pausa
+                # mantém o mesmo ritual das outras fontes (revisar antes)
+                esperar_prosseguir(
+                    "Confira a busca no navegador e clique em 'Prosseguir'.")
+
+            for i, link in enumerate(links[:alvo]):
+                print(f"[{i + 1}/{alvo}] abrindo anúncio...")
+                pagina.goto(link)
+                pagina.wait_for_load_state("domcontentloaded")
+                pagina.wait_for_timeout(4000)
+                fechar_cookies(pagina)
+                pausa_humana(1, 2)
+
+                if posicao == 1 and i == 0:
+                    dump_diagnostico(pagina, "icarros-compra", "anuncio")
+
+                enviado = enviar_mensagem_icarros(pagina, p, p.dry_run)
+
+                if enviado:
+                    visitados.append({
+                        "url": link,
+                        "site": "icarros",
+                        "produto": produto,
+                        "cep": p.cep,
+                        "mensagem": p.mensagem,
+                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+                    urls_visitadas.add(link)
+                    salvar_visitados(visitados)
+                pausa_humana(4, 9)
 
         print("Concluído.")
         contexto.close()

@@ -158,15 +158,20 @@ def executar(p):
         except Exception:
             pass
 
-    url = montar_url_busca(p.produto)
-    if not url:
-        print(f"Webmotors: informe o veículo no campo Produto "
-              f"(ex.: 'chevrolet onix'). Recebi: {p.produto!r}")
-        return
     if not (p.nome_contato and p.email_contato and p.telefone_contato):
         print("Webmotors: preencha Nome, E-mail e Telefone na interface — "
               "o formulário do anúncio exige os três.")
         return
+
+    fila = [nome for nome in p.produtos if montar_url_busca(nome)]
+    if not fila:
+        print(f"Webmotors: informe o veículo no campo Produto "
+              f"(ex.: 'chevrolet onix'). Recebi: {p.produtos!r}")
+        return
+    if len(fila) > 1:
+        print(f"Fila de {len(fila)} produto(s): {', '.join(fila)}")
+        if p.quantidade:
+            print(f"Até {p.quantidade} anúncio(s) POR PRODUTO.")
     if uf_do_cep(p.cep):
         print("Webmotors: a busca não filtra por região nesta versão "
               "(o site usa cidade escolhida no painel, não o CEP).")
@@ -175,64 +180,69 @@ def executar(p):
         contexto, pagina = abrir_navegador(pw)
         pagina.set_default_timeout(120000)
 
-        print(f"Webmotors — busca: {url}")
-        pagina.goto(url)
-        pagina.wait_for_load_state("domcontentloaded")
-        pagina.wait_for_timeout(6000)
-        fechar_cookies(pagina)
-
-        # o desafio "Pressione e segure" é resolvido por VOCÊ na janela
-        if not esperar_desafio_humano(pagina, minutos=5):
-            contexto.close()
-            return
-        barreira = detectar_barreira(pagina)
-        if barreira:
-            print(f"  ! Webmotors barrou o acesso ({barreira}).")
-            dump_diagnostico(pagina, "webmotors-compra", "barreira")
-            contexto.close()
-            return
-
-        dump_diagnostico(pagina, "webmotors-compra", "busca")
-        links = coletar_anuncios(pagina, p)
-
+        # histórico compartilhado pela fila: anúncio já contatado não volta
         visitados = carregar_visitados()
         urls_visitadas = {item["url"] for item in visitados}
-        links = [link for link in links if link not in urls_visitadas]
 
-        total = len(links)
-        alvo = calcular_alvo(total, p.quantidade)
-        print(f"Encontrados {total} anúncios novos. Vou processar {alvo}.")
-
-        esperar_prosseguir(
-            "Confira a busca no navegador e clique em 'Prosseguir'.")
-
-        for i, link in enumerate(links[:alvo]):
-            print(f"[{i + 1}/{alvo}] abrindo anúncio...")
-            pagina.goto(link)
+        for posicao, produto in enumerate(fila, start=1):
+            url = montar_url_busca(produto)
+            print("")
+            print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
+            print(f"Webmotors — busca: {url}")
+            pagina.goto(url)
             pagina.wait_for_load_state("domcontentloaded")
-            pagina.wait_for_timeout(5000)
+            pagina.wait_for_timeout(6000)
             fechar_cookies(pagina)
+
+            # o desafio "Pressione e segure" é resolvido por VOCÊ na janela
             if not esperar_desafio_humano(pagina, minutos=5):
                 break
-            pausa_humana(1, 2)
+            barreira = detectar_barreira(pagina)
+            if barreira:
+                print(f"  ! Webmotors barrou o acesso ({barreira}).")
+                dump_diagnostico(pagina, "webmotors-compra", "barreira")
+                break
 
-            if i == 0:
-                dump_diagnostico(pagina, "webmotors-compra", "anuncio")
+            if posicao == 1:
+                dump_diagnostico(pagina, "webmotors-compra", "busca")
+            links = coletar_anuncios(pagina, p)
+            links = [link for link in links if link not in urls_visitadas]
 
-            enviado = enviar_mensagem_webmotors(pagina, p, p.dry_run)
+            total = len(links)
+            alvo = calcular_alvo(total, p.quantidade)   # vale por produto
+            print(f"Encontrados {total} anúncios novos. Vou processar {alvo}.")
 
-            if enviado:
-                visitados.append({
-                    "url": link,
-                    "site": "webmotors",
-                    "produto": p.produto,
-                    "cep": p.cep,
-                    "mensagem": p.mensagem,
-                    "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                })
-                urls_visitadas.add(link)
-                salvar_visitados(visitados)
-            pausa_humana(4, 9)
+            if posicao == 1:
+                esperar_prosseguir(
+                    "Confira a busca no navegador e clique em 'Prosseguir'.")
+
+            for i, link in enumerate(links[:alvo]):
+                print(f"[{i + 1}/{alvo}] abrindo anúncio...")
+                pagina.goto(link)
+                pagina.wait_for_load_state("domcontentloaded")
+                pagina.wait_for_timeout(5000)
+                fechar_cookies(pagina)
+                if not esperar_desafio_humano(pagina, minutos=5):
+                    break
+                pausa_humana(1, 2)
+
+                if posicao == 1 and i == 0:
+                    dump_diagnostico(pagina, "webmotors-compra", "anuncio")
+
+                enviado = enviar_mensagem_webmotors(pagina, p, p.dry_run)
+
+                if enviado:
+                    visitados.append({
+                        "url": link,
+                        "site": "webmotors",
+                        "produto": produto,
+                        "cep": p.cep,
+                        "mensagem": p.mensagem,
+                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+                    urls_visitadas.add(link)
+                    salvar_visitados(visitados)
+                pausa_humana(4, 9)
 
         print("Concluído.")
         contexto.close()

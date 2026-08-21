@@ -139,6 +139,14 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   km), com fallback para busca nacional. A OLX **bloqueia** navegação
   automatizada insistente (Cloudflare): o bot detecta e para com aviso —
   nunca tentar contornar; rodar menos anúncios por vez.
+- Compra em **fila**: o campo Produtos aceita um nome por linha e o bot
+  faz um de cada vez, do começo ao fim, na mesma sessão do navegador. A
+  **quantidade máxima vale POR NOME** (não é dividida entre eles) — quem
+  guarda a fila é `Parametros.produtos`, e `produto` continua sendo o
+  primeiro, para o código que trata um por vez. No Facebook a localização
+  é aplicada só na primeira volta (é filtro global do Marketplace e
+  reabrir o modal a cada nome só aumentaria a chance de falhar), e o
+  histórico de `visitados.json` é compartilhado pela fila inteira.
 - Fontes de Compra vivem em `SITES_COMPRA` (interface_bot.py) e são
   despachadas por `site` no run.py: `facebook` (run.py), `icarros`
   (compra_icarros.py), `webmotors` (compra_webmotors.py) e `olx`

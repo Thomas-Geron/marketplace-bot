@@ -1,11 +1,13 @@
 # bot/parametros.py
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 import re
 
 
 @dataclass
 class Parametros:
+    # `produto` é o termo ATUAL da busca; `produtos` é a fila completa.
+    # A quantidade máxima vale para CADA nome da fila, não para o total.
     produto: str
     cep: str
     raio_km: int
@@ -21,6 +23,7 @@ class Parametros:
     ano_max: Optional[int] = None
     km_max: Optional[int] = None
     cambio: str = ""
+    produtos: List[str] = field(default_factory=list)
     # dados de contato exigidos pelo formulário do anúncio no iCarros
     nome_contato: str = ""
     email_contato: str = ""
@@ -28,6 +31,15 @@ class Parametros:
     cpf_contato: str = ""
 
     def __post_init__(self):
+        # a fila aceita tanto um nome só quanto vários; `produto` sempre
+        # aponta para o primeiro, para o código que lida com um por vez
+        self.produtos = [str(nome).strip() for nome in (self.produtos or [])
+                         if str(nome).strip()]
+        if not self.produtos and str(self.produto or "").strip():
+            self.produtos = [str(self.produto).strip()]
+        if self.produtos:
+            self.produto = self.produtos[0]
+
         # limpa qualquer coisa que não seja número
         numeros = re.sub(r"\D", "", str(self.cep))
 
@@ -52,8 +64,8 @@ def so_numeros(valor) -> Optional[int]:
 def validar(p: Parametros) -> list[str]:
     erros = []
 
-    if not p.produto.strip():
-        erros.append("O nome do produto é obrigatório.")
+    if not p.produtos:
+        erros.append("Informe ao menos um produto para buscar.")
 
     if not p.mensagem.strip():
         erros.append("A mensagem é obrigatória.")
