@@ -146,13 +146,19 @@ def iniciar():
             return
 
         # dados pessoais NÃO entram no JSON: vão só no ambiente do processo
-        # do bot e somem quando ele termina
-        ambiente = contato.para_ambiente({
-            "nome": ent_nome.get().strip(),
-            "cpf": ent_cpf.get().strip(),
-            "telefone": ent_telefone.get().strip(),
-            "email": ent_email.get().strip(),
-        })
+        # do bot e somem quando ele termina. E só vão para o site que os
+        # pede de fato — o chat da OLX, por exemplo, não usa CPF nem nada
+        # disso, então nada é passado adiante quando ela é a escolhida.
+        if campos_do_site(site_escolhido())["contato"]:
+            dados_contato = {
+                "nome": ent_nome.get().strip(),
+                "cpf": ent_cpf.get().strip(),
+                "telefone": ent_telefone.get().strip(),
+                "email": ent_email.get().strip(),
+            }
+        else:
+            dados_contato = {}
+        ambiente = contato.para_ambiente(dados_contato)
 
         with open(CAMINHO_PARAMS, "w", encoding="utf-8") as f:
             json.dump(params, f, ensure_ascii=False, indent=2)

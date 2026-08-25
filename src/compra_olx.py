@@ -33,11 +33,11 @@ import re
 import sys
 import time
 import urllib.parse
-from datetime import datetime
 
 from playwright.sync_api import sync_playwright
 
-from coleta import calcular_alvo, carregar_visitados, salvar_visitados
+from coleta import calcular_alvo
+from historico import Historico, identificar_vendedor
 from navegador import abrir_navegador
 from sinal import esperar_prosseguir
 from venda.sites.base import (
@@ -386,9 +386,9 @@ def executar(p):
         contexto, pagina = abrir_navegador(pw, "edge")
         pagina.set_default_timeout(120000)
 
-        # histórico compartilhado pela fila: anúncio já contatado não volta
-        visitados = carregar_visitados()
-        urls_visitadas = {item["url"] for item in visitados}
+        # histórico compartilhado pela fila E entre execuções: nem o mesmo
+        # anúncio nem a mesma pessoa recebem mensagem duas vezes
+        historico = Historico()
 
         for posicao, produto in enumerate(fila, start=1):
             busca = _busca_do_produto(p, produto)
@@ -429,7 +429,7 @@ def executar(p):
                 dump_diagnostico(pagina, "olx-compra", "busca")
 
             links = carregar_e_coletar(pagina)
-            links = [link for link in links if link not in urls_visitadas]
+            links = historico.novos(links)
 
             total = len(links)
             alvo = calcular_alvo(total, p.quantidade)   # vale por produto
@@ -448,19 +448,29 @@ def executar(p):
                     _explicar_firewall()
                     break
 
+                # trava por PESSOA: um anunciante com vários carros
+
+                # receberia uma mensagem por anúncio sem esta checagem
+
+                vendedor = identificar_vendedor(pagina, "olx")
+
+                bloqueado, motivo = historico.ja_contatado(link, vendedor)
+
+                if bloqueado:
+
+                    print(f"  [pulado] {motivo}")
+
+                    continue
+
+
                 enviado = enviar_mensagem_olx(pagina, p.mensagem, p.dry_run)
 
+
                 if enviado and not p.dry_run:
-                    visitados.append({
-                        "url": link,
-                        "site": "olx",
-                        "produto": produto,
-                        "cep": p.cep,
-                        "mensagem": p.mensagem,
-                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    })
-                    urls_visitadas.add(link)
-                    salvar_visitados(visitados)
+
+                    historico.registrar(link, "olx", produto, p.mensagem,
+
+                                        p.cep, vendedor)
                 pausa_humana(4, 9)
 
         print("Concluído.")

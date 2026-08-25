@@ -3,15 +3,14 @@ import json
 import random
 import time
 from playwright.sync_api import sync_playwright
-from datetime import datetime
 
 import config
 import contato
 from parametros import Parametros, so_numeros, validar
 from navegador import abrir_navegador
 from filtros import pesquisar_produto, aplicar_localizacao, aplicar_preco
-from coleta import (carregar_todos, calcular_alvo, coletar_links, carregar_visitados,salvar_visitados
-)
+from coleta import carregar_todos, calcular_alvo, coletar_links
+from historico import Historico, identificar_vendedor
 from mensagem import enviar_mensagem
 from sinal import esperar_prosseguir
 from paths import get_parametros_path
@@ -109,8 +108,7 @@ def _executar():
         esperar_prosseguir("Faça o login no navegador e clique em 'Prosseguir'.")
         pause(3)
 
-        visitados = carregar_visitados()
-        urls_visitadas = {item["url"] for item in visitados}
+        historico = Historico()
 
         for posicao, produto in enumerate(fila, start=1):
             if len(fila) > 1:
@@ -142,11 +140,7 @@ def _executar():
 
             links = coletar_links(pagina)
 
-            links = [
-                link
-                for link in links
-                if link not in urls_visitadas
-            ]
+            links = historico.novos(links)
 
             total = len(links)
 
@@ -177,26 +171,19 @@ def _executar():
 
                 pausa_humana(1, 2)
 
+                # trava por PESSOA: o mesmo anunciante com vários carros
+                # receberia uma mensagem por anúncio sem esta checagem
+                vendedor = identificar_vendedor(pagina, "facebook")
+                bloqueado, motivo = historico.ja_contatado(link, vendedor)
+                if bloqueado:
+                    print(f"    [pulado] {motivo}")
+                    continue
+
                 enviar_mensagem(pagina, p.mensagem, p.dry_run)
 
-                if not p.dry_run and link not in urls_visitadas:
-
-                    registro = {
-                        "url": link,
-                        "produto": produto,
-                        "cep": p.cep,
-                        "mensagem": p.mensagem,
-                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-
-                    visitados.append(registro)
-
-                    # Atualiza o conjunto para evitar duplicatas na mesma execução
-                    urls_visitadas.add(link)
-
-                    salvar_visitados(visitados)
-
-
+                if not p.dry_run:
+                    historico.registrar(link, "facebook", produto, p.mensagem,
+                                        p.cep, vendedor)
 
                     pausa_humana(2, 3)
 

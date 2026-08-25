@@ -24,11 +24,11 @@ import re
 import sys
 import time
 import unicodedata
-from datetime import datetime
 
 from playwright.sync_api import sync_playwright
 
-from coleta import calcular_alvo, carregar_visitados, salvar_visitados
+from coleta import calcular_alvo
+from historico import Historico, identificar_vendedor
 from compra_olx import uf_do_cep
 from navegador import abrir_navegador
 from sinal import esperar_prosseguir
@@ -223,10 +223,9 @@ def executar(p):
         contexto, pagina = abrir_navegador(pw)
         pagina.set_default_timeout(120000)
 
-        # o histórico é compartilhado pela fila inteira: um anúncio já
-        # contatado não volta só porque casou com outro nome da lista
-        visitados = carregar_visitados()
-        urls_visitadas = {item["url"] for item in visitados}
+        # o histórico é compartilhado pela fila E entre execuções: nem o
+        # mesmo anúncio nem a mesma pessoa recebem mensagem duas vezes
+        historico = Historico()
 
         for posicao, produto in enumerate(fila, start=1):
             url = montar_url_busca(produto)
@@ -247,7 +246,7 @@ def executar(p):
             if posicao == 1:
                 dump_diagnostico(pagina, "icarros-compra", "busca")
             links = coletar_anuncios(pagina, p)
-            links = [link for link in links if link not in urls_visitadas]
+            links = historico.novos(links)
 
             total = len(links)
             alvo = calcular_alvo(total, p.quantidade)   # vale por produto
@@ -270,19 +269,18 @@ def executar(p):
                 if posicao == 1 and i == 0:
                     dump_diagnostico(pagina, "icarros-compra", "anuncio")
 
-                enviado = enviar_mensagem_icarros(pagina, p, p.dry_run)
+                # trava por PESSOA: um anunciante com vários carros
+                # receberia uma mensagem por anúncio sem esta checagem
+                vendedor = identificar_vendedor(pagina, "icarros")
+                bloqueado, motivo = historico.ja_contatado(link, vendedor)
+                if bloqueado:
+                    print(f"  [pulado] {motivo}")
+                    continue
 
+                enviado = enviar_mensagem_icarros(pagina, p, p.dry_run)
                 if enviado:
-                    visitados.append({
-                        "url": link,
-                        "site": "icarros",
-                        "produto": produto,
-                        "cep": p.cep,
-                        "mensagem": p.mensagem,
-                        "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    })
-                    urls_visitadas.add(link)
-                    salvar_visitados(visitados)
+                    historico.registrar(link, "icarros", produto, p.mensagem,
+                                        p.cep, vendedor)
                 pausa_humana(4, 9)
 
         print("Concluído.")
