@@ -434,6 +434,12 @@ class SiteAdapter:
     # (nome/CPF/telefone/e-mail) além do login. A interface só mostra esses
     # campos quando um site assim está marcado.
     exige_dados_pessoais = False
+    # True quando o adaptador sabe EXCLUIR um anúncio publicado (ver
+    # excluir_anuncio). A interface só oferece o botão para esses sites.
+    suporta_exclusao = False
+    # opções que a interface manda no parametros_venda.json e só fazem
+    # sentido para um site (ex.: qual Página do Facebook usar)
+    opcoes = {}
 
     def abrir_novo_anuncio(self, pagina):
         """Navega até o formulário de novo anúncio, pronto para preencher."""
@@ -449,3 +455,19 @@ class SiteAdapter:
         """Confirma/publica o anúncio preenchido. Só é chamado fora do
         modo teste (dry-run)."""
         raise NotImplementedError
+
+    def finalizar(self, pagina):
+        """Devolve o navegador ao estado de antes. Roda sempre, mesmo se o
+        anúncio falhou (o Facebook/Página, por exemplo, precisa voltar ao
+        perfil pessoal, senão o Marketplace fica bloqueado depois)."""
+        return None
+
+    def excluir_anuncio(self, pagina, veiculo):
+        """Tira do ar o anúncio deste veículo. Retorna True se excluiu.
+
+        É a única operação DESTRUTIVA do bot: a interface pede confirmação
+        antes e o anunciador só apaga o registro local quando o site
+        confirma a exclusão.
+        """
+        raise NotImplementedError(
+            f"{self.nome}: exclusão de anúncio ainda não calibrada")

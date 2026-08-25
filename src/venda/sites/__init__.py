@@ -9,6 +9,7 @@ sites por este registro.
 """
 from venda.sites.site_demo import SiteDemo
 from venda.sites.site_facebook import SiteFacebook
+from venda.sites.site_facebook_pagina import SiteFacebookPagina
 from venda.sites.site_icarros import SiteICarros
 from venda.sites.site_kavak import SiteKavak
 from venda.sites.site_mobiauto import SiteMobiauto
@@ -20,6 +21,7 @@ SITES = {
     for adapter in [
         SiteDemo(),
         SiteFacebook(),
+        SiteFacebookPagina(),
         SiteICarros(),
         SiteMobiauto(),
         SiteNaPista(),

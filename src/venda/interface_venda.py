@@ -13,13 +13,21 @@ Duas regras de tela que valem registrar:
 - os campos sensíveis (dados pessoais e usuário/senha por site) só
   aparecem quando um site que precisa deles está MARCADO. Antes a tela
   pedia login de sites que nem dava para selecionar.
+
+Além de anunciar, a tela desfaz o que já foi feito, de dois jeitos que
+NÃO são a mesma coisa:
+- "Anunciar de novo" só apaga o registro LOCAL (anunciados.json), que é
+  a trava anti-spam — o anúncio no site continua no ar;
+- "Excluir anúncio" abre o navegador e tira o anúncio DO AR no site (só
+  para sites com `suporta_exclusao`), e o registro local cai junto.
+Como a segunda é irreversível, ela pede confirmação antes.
 """
 import json
 import queue
 import subprocess
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 import contato
 import ui_tema
@@ -29,7 +37,7 @@ from ui_scroll import criar_area_rolavel
 from venda import anunciados
 from venda.banco import BancoVeiculos
 from venda.config_venda import modo_demo
-from venda.sites import listar_sites
+from venda.sites import listar_sites, obter_site
 
 processo = None
 log_queue = queue.Queue()
@@ -224,6 +232,11 @@ def iniciar():
             else:
                 quadro.grid_remove()
 
+        if "facebook_pagina" in marcados:
+            quadro_pagina_fb.pack(anchor="w", pady=(4, 0))
+        else:
+            quadro_pagina_fb.pack_forget()
+
         if precisa_pessoais or com_login:
             sec_dados.grid(row=linha_dados, column=0, sticky="we", pady=(0, 8))
         else:
@@ -289,6 +302,17 @@ def iniciar():
             if motivo:
                 ttk.Label(linha_site, text=f"({motivo})",
                           style="Suave.TLabel").pack(side="left", padx=(4, 0))
+    # a Página não usa o Marketplace (o Facebook responde "Pages can't use
+    # Marketplace"): o anúncio dela é um post no feed, e o bot precisa saber
+    # em QUAL Página postar quando a conta administra mais de uma
+    quadro_pagina_fb = ttk.Frame(sec_sites)
+    ttk.Label(quadro_pagina_fb, text="Página do Facebook:").pack(side="left")
+    ent_pagina_fb = ttk.Entry(quadro_pagina_fb, width=28)
+    ent_pagina_fb.pack(side="left", padx=(6, 0))
+    ttk.Label(quadro_pagina_fb,
+              text="(em branco = a única que você administra)",
+              style="Suave.TLabel").pack(side="left", padx=(6, 0))
+
     ttk.Label(sec_sites,
               text="Cada veículo é anunciado no máximo UMA vez por site "
                    "(anti-spam).", style="Suave.TLabel").pack(anchor="w",
@@ -307,14 +331,18 @@ def iniciar():
             txt_log.see("end")
         agendado["log"] = root.after(100, drenar_log)
 
-    def rodar():
+    def escolha_atual():
+        """(veículos marcados na lista, sites marcados). Vazio = erro."""
+        return ([veiculos[i] for i in lst_veiculos.curselection()],
+                [sid for sid, var in vars_sites.items() if var.get()])
+
+    def rodar(acao="anunciar"):
         global processo
         if processo is not None and processo.poll() is None:
             status.set("O anunciador já está rodando.")
             return
 
-        selecionados = [veiculos[i] for i in lst_veiculos.curselection()]
-        sites_sel = [sid for sid, var in vars_sites.items() if var.get()]
+        selecionados, sites_sel = escolha_atual()
         if not selecionados or not sites_sel:
             status.set("Marque ao menos um veículo e um site.")
             return
@@ -323,6 +351,11 @@ def iniciar():
             "veiculos": selecionados,
             "sites": sites_sel,
             "dry_run": bool(var_dry.get()),
+            "acao": acao,
+            "opcoes": {
+                "facebook_pagina": {
+                    "pagina_facebook": ent_pagina_fb.get().strip()},
+            },
         }
         with open(get_parametros_venda_path(), "w", encoding="utf-8") as f:
             json.dump(params, f, ensure_ascii=False, indent=2)
@@ -345,8 +378,62 @@ def iniciar():
             text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
-        status.set("Anunciador iniciado. Logue nos sites abertos e clique em "
-                   "Prosseguir.")
+        if acao == "excluir":
+            status.set("Excluindo anúncios. Confira o login nos sites abertos "
+                       "e clique em Prosseguir.")
+        else:
+            status.set("Anunciador iniciado. Logue nos sites abertos e clique "
+                       "em Prosseguir.")
+
+    def anunciar_de_novo():
+        """Libera a trava anti-spam: some com o registro local do par
+        veículo×site. Não mexe no anúncio que está no ar."""
+        selecionados, sites_sel = escolha_atual()
+        if not selecionados:
+            status.set("Marque os veículos que quer anunciar de novo.")
+            return
+        # nenhum site marcado = libera o veículo em todos os sites
+        alvos = sites_sel or [None]
+        apagados = 0
+        for v in selecionados:
+            for site_id in alvos:
+                apagados += anunciados.esquecer(v["id"], site_id)
+        preencher_lista()
+        if apagados:
+            onde = "nos sites marcados" if sites_sel else "em todos os sites"
+            status.set(f"{apagados} registro(s) liberado(s) {onde} — "
+                       "esses veículos podem ser anunciados de novo.")
+        else:
+            status.set("Nada a liberar: esses veículos não constam como "
+                       "anunciados.")
+
+    def excluir_anuncio():
+        """Tira o anúncio DO AR no site. Irreversível, então confirma."""
+        selecionados, sites_sel = escolha_atual()
+        if not selecionados or not sites_sel:
+            status.set("Marque os veículos e o site do anúncio a excluir.")
+            return
+
+        sem_suporte = [obter_site(s).nome for s in sites_sel
+                       if not getattr(obter_site(s), "suporta_exclusao", False)]
+        capazes = [s for s in sites_sel
+                   if getattr(obter_site(s), "suporta_exclusao", False)]
+        if not capazes:
+            status.set("Exclusão pelo bot ainda não calibrada em: "
+                       + ", ".join(sem_suporte))
+            return
+
+        nomes = ", ".join(obter_site(s).nome for s in capazes)
+        aviso = (f"Excluir {len(selecionados)} anúncio(s) em {nomes}?\n\n"
+                 "O anúncio sai do ar no site — não dá para desfazer.")
+        if sem_suporte:
+            aviso += ("\n\nSerão ignorados (exclusão não calibrada): "
+                      + ", ".join(sem_suporte))
+        if not messagebox.askyesno("Excluir anúncio", aviso, icon="warning",
+                                   default="no", parent=root):
+            status.set("Exclusão cancelada.")
+            return
+        rodar("excluir")
 
     def prosseguir():
         if processo is not None and processo.poll() is None:
@@ -381,6 +468,17 @@ def iniciar():
     ui_tema.botao(botoes, "Prosseguir", prosseguir, "destaque", 13).pack(
         side="left", padx=(0, 6))
     ui_tema.botao(botoes, "Parar", parar, "perigo", 11).pack(side="left")
+
+    botoes2 = ttk.Frame(botoes.master)
+    botoes2.pack(fill="x", pady=(6, 0))
+    ui_tema.botao(botoes2, "Anunciar de novo", anunciar_de_novo, "neutro",
+                  17).pack(side="left", padx=(0, 6))
+    ui_tema.botao(botoes2, "Excluir anúncio", excluir_anuncio, "perigo",
+                  16).pack(side="left")
+    ttk.Label(botoes.master,
+              text="Anunciar de novo só libera a trava local; Excluir tira o "
+                   "anúncio do ar no site.",
+              style="Suave.TLabel").pack(anchor="w", pady=(4, 0))
 
     root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
 

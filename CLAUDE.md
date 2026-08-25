@@ -54,14 +54,27 @@ bloco de login do Supabase se recolhe numa linha "Conectado: … [Sair]".
   só `status = "disponível"` (tolerante a acento/caixa). Signup do Supabase
   fica **aberto** — o site do Thomas é quem cadastra os usuários.
 - Trava anti-spam: cada par veículo×site anuncia UMA vez (`anunciados.json`).
+- Desfazer, de dois jeitos que NÃO se confundem: **"Anunciar de novo"**
+  só apaga o registro local (`anunciados.esquecer`) — o anúncio segue no
+  ar; **"Excluir anúncio"** roda o anunciador com `acao = "excluir"` e
+  tira o anúncio DO AR no site (só sites com `suporta_exclusao`), pedindo
+  confirmação antes e apagando o registro local apenas quando o site
+  confirma. `excluir_anuncio` sempre CONFERE que o anúncio sumiu antes de
+  responder True: seletor errado vira "não excluído" + captura em debug/,
+  nunca um sucesso falso.
 
 ## Sites de anúncio (`src/venda/sites/`)
 
 Adaptadores plugáveis (1 arquivo por site + registro no `__init__.py`):
-`facebook` (form /marketplace/create/vehicle), `icarros` (PAGO — pagamento
+`facebook` (form /marketplace/create/vehicle), `facebook_pagina` (post no
+feed da PÁGINA), `icarros` (PAGO — pagamento
 manual), `mobiauto`, `napista` (conta de loja), `webmotors` (form atrás de
 login), `kavak` (funil de COTAÇÃO, não é classificado) e `demo` (formulário
 local em assets/ para testes).
+Opção que só faz sentido para um site (ex.: qual Página do Facebook usar)
+vai em `parametros_venda.json` → `opcoes[<site_id>]` e chega no adaptador
+como `self.opcoes`. `finalizar(pagina)` roda ao fim do site, mesmo com
+erro, para devolver o navegador ao estado anterior.
 Site sem formulário calibrado ponta a ponta leva `disponivel = False` +
 `motivo_indisponivel`: a interface o mostra cinza com "Em breve" e o
 anunciador o ignora mesmo vindo de um parametros_venda.json antigo. Ao
@@ -96,6 +109,31 @@ rehidrata e limpa o DOM salvo (dá falso negativo em tudo). Lembrar que
 num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 
 ## Estado atual / pendências
+
+- **Facebook (Página) calibrado** (ago/2026, ao vivo): Página **não pode
+  usar o Marketplace** — com o perfil da Página ativo, qualquer URL do
+  Marketplace cai em `/marketplace/ineligible/` com "Pages can't use
+  Marketplace". O que a Página tem é o POST no feed, e é isso que o
+  adaptador faz: `pages/?category=your_pages` lista as Páginas geridas →
+  no perfil da Página, `[aria-label="Alternar"]` + o "Alternar" do
+  diálogo "Trocar de perfil" trocam o perfil ativo → o composer
+  ("No que você está pensando?") abre `[role="dialog"][aria-label="Criar
+  post"]`, cujo texto é um editor **Lexical**
+  (`[role="textbox"][data-lexical-editor="true"]` — tem aria-PLACEHOLDER,
+  não aria-label, e ignora `fill`: escrever com `keyboard.type`) e cujas
+  fotos entram pelo `input[type=file][multiple]` de dentro do diálogo →
+  "Avançar" leva a "Configurações do post" e o botão final é
+  `[aria-label="Postar"]`. **"Turbinar post" é anúncio pago e fica
+  desligado.** No fim, `finalizar()` volta ao perfil pessoal
+  (`[aria-label="Seu perfil"]` → `[aria-label^="Trocar para "]`) — sem
+  isso o bot do Marketplace ficaria bloqueado na execução seguinte.
+  Ensaiado ao vivo com veículo fictício: troca de perfil, texto e upload
+  de fotos conferidos; nada foi publicado.
+- **Exclusão de anúncio ainda não confirmada ao vivo**: a conta de teste
+  não tem nenhum classificado no ar ("Seus classificados" vazio) nem post
+  de veículo na Página, então o caminho menu (…) → "Excluir" → confirmar
+  foi escrito a partir da estrutura do painel, com verificação e
+  `dump_diagnostico`. A primeira exclusão real fecha a calibração.
 
 - **Facebook (Venda) calibrado** (jul/2026) com capturas reais: campos
   estruturados preenchidos (tipo "Carro/picape", ano, fabricante, km,
@@ -149,6 +187,22 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   ("Chat")` casava com o "Chat" do MENU do site.
   O campo de mensagem do chat só aparece logado (o bot procura também
   dentro dos iframes e avisa quando a sessão está deslogada).
+- **Anti-repetição por PESSOA** (`src/historico.py`, ago/2026): o
+  histórico deixou de ser só de URL — cada registro guarda também o
+  `vendedor` (identificado por site em `_SELETORES_VENDEDOR`), e o bot
+  pula com "você já enviou mensagem para esta pessoa" antes de escrever,
+  em qualquer plataforma e em qualquer execução. Registros antigos, só
+  com URL, continuam valendo. Quem não é identificado não bloqueia nada
+  (o bot não inventa identidade).
+- **Ordem dos anúncios**: `coletar_links` ordena pela POSIÇÃO NA TELA
+  (linha por linha, com tolerância de 40px), não pela ordem do DOM — o
+  Facebook injeta os cards fora de ordem e o bot abria "o primeiro do
+  carregamento" em vez do primeiro visível. Sem posições legíveis, cai
+  de volta na ordem do DOM.
+- **CPF na Compra**: só os sites cujo formulário pede contato
+  (`campos_do_site(site)["contato"]` — hoje iCarros e Webmotors) recebem
+  nome/CPF/telefone/e-mail no ambiente do processo. Facebook e OLX não
+  pedem CPF, então nem chegam a receber.
 - Compra em **fila**: o campo Produtos aceita um nome por linha e o bot
   faz um de cada vez, do começo ao fim, na mesma sessão do navegador. A
   **quantidade máxima vale POR NOME** (não é dividida entre eles) — quem

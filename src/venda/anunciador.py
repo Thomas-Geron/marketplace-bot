@@ -49,6 +49,17 @@ def _executar():
     veiculos = params["veiculos"]
     sites_ids = params["sites"]
     dry_run = params.get("dry_run", True)
+    acao = params.get("acao", "anunciar")
+    # opções por site (ex.: qual Página do Facebook usar)
+    for site_id, opcoes in (params.get("opcoes") or {}).items():
+        try:
+            obter_site(site_id).opcoes = opcoes
+        except KeyError:
+            pass
+
+    if acao == "excluir":
+        _excluir(veiculos, sites_ids)
+        return
 
     # um parametros_venda.json antigo pode trazer site ainda não calibrado
     indisponiveis = [s for s in sites_ids if not obter_site(s).disponivel]
@@ -123,10 +134,71 @@ def _executar():
                     print(f"[erro] {v['titulo']} em {site.nome}: {exc}")
                     print("       Este anúncio NÃO foi registrado — pode tentar de novo depois.")
 
+            try:
+                site.finalizar(aba)
+            except Exception as exc:
+                print(f"[aviso] {site.nome}: {exc}")
+
         print(
             f"\nConcluído: {feitos} publicado(s), {pulados} pulado(s) "
             f"pela trava anti-spam, de {total} combinação(ões)."
         )
+        contexto.close()
+
+
+def _excluir(veiculos, sites_ids):
+    """Tira do ar os anúncios dos veículos escolhidos, site a site.
+
+    Só sites com `suporta_exclusao` entram, e o registro local de
+    anunciado só cai quando o site confirma que o anúncio saiu.
+    """
+    sites_ids = [s for s in sites_ids
+                 if getattr(obter_site(s), "suporta_exclusao", False)]
+    if not veiculos or not sites_ids:
+        print("Nada a excluir: escolha veículos e um site que saiba excluir.")
+        return
+
+    print(f"EXCLUSÃO: {len(veiculos)} veículo(s) × {len(sites_ids)} site(s)")
+    with sync_playwright() as pw:
+        contexto, pagina = abrir_navegador(pw)
+        pagina.set_default_timeout(120000)
+
+        abas = {}
+        for i, site_id in enumerate(sites_ids):
+            site = obter_site(site_id)
+            aba = pagina if i == 0 else contexto.new_page()
+            aba.set_default_timeout(120000)
+            aba.goto(site.url_home)
+            abas[site_id] = aba
+            print(f"Aba aberta: {site.nome}")
+
+        esperar_prosseguir(
+            "Confira que está logado nos sites e clique em 'Prosseguir'.")
+
+        excluidos = 0
+        for site_id in sites_ids:
+            site = obter_site(site_id)
+            aba = abas[site_id]
+            print("")
+            print(f"=== {site.nome} ===")
+            for v in veiculos:
+                try:
+                    print(f"Excluindo: {v['titulo']}...")
+                    if site.excluir_anuncio(aba, v):
+                        anunciados.esquecer(v["id"], site_id)
+                        excluidos += 1
+                        print(f"Excluído: {v['titulo']} em {site.nome}")
+                    else:
+                        print(f"[não excluído] {v['titulo']} — o anúncio não "
+                              "foi encontrado ou o site não confirmou.")
+                except NotImplementedError as exc:
+                    print(f"[ignorado] {exc}")
+                    break
+                except Exception as exc:
+                    print(f"[erro] {v['titulo']} em {site.nome}: {exc}")
+
+        print("")
+        print(f"Concluído: {excluidos} anúncio(s) excluído(s).")
         contexto.close()
 
 

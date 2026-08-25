@@ -55,3 +55,23 @@ def sites_do_veiculo(veiculo_id, registros=None):
     return sorted(
         r["site"] for r in registros if r["veiculo_id"] == str(veiculo_id)
     )
+
+
+def esquecer(veiculo_id, site_id=None):
+    """Apaga o registro de anunciado — é o "anunciar de novo".
+
+    Sem `site_id`, esquece o veículo em TODOS os sites. Só mexe no
+    histórico local: o anúncio que está no ar continua lá (para tirar do
+    ar existe a exclusão no próprio site).
+    Retorna quantos registros saíram.
+    """
+    registros = carregar()
+    sobrou = [
+        r for r in registros
+        if not (r["veiculo_id"] == str(veiculo_id)
+                and (site_id is None or r["site"] == site_id))
+    ]
+    removidos = len(registros) - len(sobrou)
+    if removidos:
+        salvar(sobrou)
+    return removidos

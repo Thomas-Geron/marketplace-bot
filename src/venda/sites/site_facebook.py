@@ -232,9 +232,31 @@ def _selecionar_combobox(pagina, rotulos_campo, rotulos_opcao, nome_campo):
     return False
 
 
+def _tokens(veiculo):
+    """Pedaços do anúncio que servem para reconhecê-lo na lista de vendas."""
+    partes = [veiculo.get("modelo"), veiculo.get("ano")]
+    return [_chave(str(p)) for p in partes if p]
+
+
+JS_MEUS_ANUNCIOS = """
+  () => {
+    const vistos = {};
+    for (const a of document.querySelectorAll('a[href*="/marketplace/item/"]')) {
+      const m = (a.getAttribute('href') || '').match(/\\/marketplace\\/item\\/(\\d+)/);
+      if (!m) continue;
+      let caixa = a;
+      for (let i = 0; i < 4 && caixa.parentElement; i++) caixa = caixa.parentElement;
+      if (!vistos[m[1]]) vistos[m[1]] = (caixa.innerText || '').trim().slice(0, 300);
+    }
+    return vistos;
+  }
+"""
+
+
 class SiteFacebook(SiteAdapter):
     id = "facebook"
     nome = "Facebook Marketplace"
+    suporta_exclusao = True
     url_home = "https://www.facebook.com/marketplace/"
 
     def abrir_novo_anuncio(self, pagina):
@@ -370,3 +392,67 @@ class SiteFacebook(SiteAdapter):
             'div[role="button"]:has-text("Publicar")',
         ], "Publicar", obrigatorio=True)
         pagina.wait_for_timeout(4000)
+
+    def excluir_anuncio(self, pagina, veiculo):
+        """Tira o classificado do ar pelo painel 'Seus classificados'.
+
+        Só devolve True depois de CONFERIR que o anúncio sumiu da lista —
+        seletor errado vira 'não excluído' (e uma captura em debug/), nunca
+        um sucesso falso que apagaria o registro local à toa.
+        """
+        alvo = self._achar_anuncio(pagina, veiculo)
+        if alvo is None:
+            print("  ! não achei este veículo em 'Seus classificados'")
+            dump_diagnostico(pagina, self.id, "excluir-sem-anuncio")
+            return False
+        item_id, _ = alvo
+
+        cartao = pagina.locator(
+            f'a[href*="/marketplace/item/{item_id}"]').first.locator(
+            "xpath=ancestor::div[4]")
+        menu = cartao.locator(
+            '[aria-haspopup="menu"], [aria-label="Mais opções"], '
+            '[aria-label="Mais"]').first
+        if menu.count() == 0:
+            print("  ! não achei o menu (…) do anúncio")
+            dump_diagnostico(pagina, self.id, "excluir-sem-menu")
+            return False
+        menu.click()
+        pagina.wait_for_timeout(2500)
+
+        if not clicar(pagina, [
+            '[role="menuitem"]:has-text("Excluir")',
+            '[role="menu"] [role="button"]:has-text("Excluir")',
+        ], "Excluir classificado"):
+            dump_diagnostico(pagina, self.id, "excluir-sem-item-menu")
+            return False
+        pagina.wait_for_timeout(2500)
+
+        # o Facebook pede confirmação (às vezes com um motivo antes)
+        clicar(pagina, [
+            '[role="dialog"] [aria-label="Excluir"]',
+            '[role="dialog"] [role="button"]:has-text("Excluir")',
+            '[role="dialog"] [role="button"]:has-text("Confirmar")',
+        ], "confirmar exclusão")
+        pagina.wait_for_timeout(5000)
+
+        # confere: o anúncio precisa ter sumido da lista
+        if self._achar_anuncio(pagina, veiculo) is None:
+            return True
+        print("  ! o anúncio continua na lista depois da exclusão")
+        dump_diagnostico(pagina, self.id, "excluir-nao-confirmado")
+        return False
+
+    def _achar_anuncio(self, pagina, veiculo):
+        """(id, texto) do classificado deste veículo, ou None."""
+        pagina.goto("https://www.facebook.com/marketplace/you/selling")
+        pagina.wait_for_load_state("domcontentloaded")
+        pagina.wait_for_timeout(6000)
+        tokens = _tokens(veiculo)
+        if not tokens:
+            return None
+        for item_id, texto in (pagina.evaluate(JS_MEUS_ANUNCIOS) or {}).items():
+            chave = _chave(texto)
+            if all(t in chave for t in tokens):
+                return item_id, texto
+        return None
