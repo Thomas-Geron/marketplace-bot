@@ -41,7 +41,9 @@ SITES_COMPRA = [
     ("Facebook Marketplace", "facebook"),
     ("iCarros", "icarros"),
     ("Webmotors", "webmotors"),
+    ("Mobiauto", "mobiauto"),
     ("OLX", "olx"),
+    ("NaPista (só lista)", "napista"),
 ]
 
 DICAS = {
@@ -55,8 +57,18 @@ DICAS = {
                 "nome/e-mail/telefone ao vendedor. A região vem do estado do "
                 "CEP e o preço é filtrado pelo bot."),
     "webmotors": ("O formulário do anúncio envia seu nome/e-mail/telefone ao "
-                  "vendedor. Não filtra por região nesta versão e pode pedir "
-                  "'Pressione e segure' — o bot espera você resolver na janela."),
+                  "vendedor e o site pede CPF. Não filtra por região nesta "
+                  "versão e pode pedir 'Pressione e segure' — o bot espera "
+                  "você resolver na janela."),
+    "mobiauto": ("Escreva a MARCA e, se quiser, o modelo (ex.: 'chevrolet "
+                 "onix'). Não exige login: o bloco 'Fale com o vendedor' pede "
+                 "nome/e-mail/celular e a mensagem — CPF não, quem pede CPF "
+                 "ali é o financiamento, e o bot não mexe nele. A região vem "
+                 "do estado do CEP e o preço é filtrado pelo bot."),
+    "napista": ("A NaPista não tem formulário de mensagem — só WhatsApp e "
+                "telefone da loja. Aqui o bot PROCURA e LISTA os anúncios que "
+                "batem com a busca (link, preço, ano, km e cidade); falar com "
+                "a loja é com você. Nenhuma mensagem é enviada."),
 }
 
 processo = None
@@ -73,13 +85,18 @@ def campos_do_site(site):
     Regra separada da GUI para poder ser testada sozinha:
     - Facebook: CEP + raio em km; não tem ano/km/câmbio nem contato.
     - OLX: região pelo estado do CEP (sem raio) + ano/km/câmbio.
-    - iCarros e Webmotors: sem raio; exigem seus dados de contato, porque o
-      formulário do anúncio os envia ao vendedor.
+    - iCarros, Webmotors e Mobiauto: sem raio; exigem seus dados de contato,
+      porque o formulário do anúncio os envia ao vendedor.
+    - CPF é caso à parte: só iCarros e Webmotors pedem. O formulário do
+      vendedor na Mobiauto não pede (lá quem pede CPF é o financiamento,
+      que o bot não preenche), então o campo nem aparece.
+    - NaPista não envia mensagem nenhuma: não pede contato.
     """
     return {
         "raio": site == "facebook",
         "extras": site == "olx",
-        "contato": site in ("icarros", "webmotors"),
+        "contato": site in ("icarros", "webmotors", "mobiauto"),
+        "cpf": site in ("icarros", "webmotors"),
     }
 
 
@@ -149,10 +166,12 @@ def iniciar():
         # do bot e somem quando ele termina. E só vão para o site que os
         # pede de fato — o chat da OLX, por exemplo, não usa CPF nem nada
         # disso, então nada é passado adiante quando ela é a escolhida.
-        if campos_do_site(site_escolhido())["contato"]:
+        usa = campos_do_site(site_escolhido())
+        if usa["contato"]:
             dados_contato = {
                 "nome": ent_nome.get().strip(),
-                "cpf": ent_cpf.get().strip(),
+                # CPF só para quem pede de verdade (iCarros e Webmotors)
+                "cpf": ent_cpf.get().strip() if usa["cpf"] else "",
                 "telefone": ent_telefone.get().strip(),
                 "email": ent_email.get().strip(),
             }
@@ -317,7 +336,8 @@ def iniciar():
     ttk.Label(sec_contato, text="Telefone").grid(row=2, column=0, sticky="w")
     ent_telefone = ttk.Entry(sec_contato, width=16)
     ent_telefone.grid(row=2, column=1, sticky="we", padx=(4, 8), pady=2)
-    ttk.Label(sec_contato, text="CPF").grid(row=2, column=2, sticky="w")
+    lbl_cpf = ttk.Label(sec_contato, text="CPF")
+    lbl_cpf.grid(row=2, column=2, sticky="w")
     ent_cpf = ttk.Entry(sec_contato, width=18)
     ent_cpf.grid(row=2, column=3, sticky="we", padx=(4, 0), pady=2)
     linha_contato = linha
@@ -366,6 +386,13 @@ def iniciar():
         else:
             lbl_raio.grid_remove()
             cmb_raio.grid_remove()
+
+        if usa["cpf"]:
+            lbl_cpf.grid()
+            ent_cpf.grid()
+        else:
+            lbl_cpf.grid_remove()
+            ent_cpf.grid_remove()
 
         for secao_alvo, visivel, onde in (
                 (sec_extras, usa["extras"], linha_extras),

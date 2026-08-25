@@ -199,10 +199,11 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   Facebook injeta os cards fora de ordem e o bot abria "o primeiro do
   carregamento" em vez do primeiro visível. Sem posições legíveis, cai
   de volta na ordem do DOM.
-- **CPF na Compra**: só os sites cujo formulário pede contato
-  (`campos_do_site(site)["contato"]` — hoje iCarros e Webmotors) recebem
-  nome/CPF/telefone/e-mail no ambiente do processo. Facebook e OLX não
-  pedem CPF, então nem chegam a receber.
+- **CPF na Compra**: `campos_do_site` separa "contato" de "cpf". Contato
+  (nome/e-mail/telefone) vai para iCarros, Webmotors e Mobiauto; o CPF só
+  para **iCarros e Webmotors**, que pedem de fato — na Mobiauto quem pede
+  CPF é o financiamento, que o bot não preenche, então o campo some da
+  tela. Facebook, OLX e NaPista não recebem nada disso.
 - Compra em **fila**: o campo Produtos aceita um nome por linha e o bot
   faz um de cada vez, do começo ao fim, na mesma sessão do navegador. A
   **quantidade máxima vale POR NOME** (não é dividida entre eles) — quem
@@ -211,11 +212,34 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   é aplicada só na primeira volta (é filtro global do Marketplace e
   reabrir o modal a cada nome só aumentaria a chance de falhar), e o
   histórico de `visitados.json` é compartilhado pela fila inteira.
+- **Mobiauto como fonte de Compra** (ago/2026, calibrada ao vivo): o
+  anúncio tem o bloco **"Fale com o vendedor"** (nome, e-mail, celular e
+  mensagem) e NÃO exige login — com os três campos preenchidos, o botão
+  "Enviar Mensagem", que nasce desabilitado, libera sozinho. Pegadinha:
+  a MESMA página tem o formulário de financiamento do Banco Pan, com
+  nome/e-mail/celular e **CPF**, e os dois usam `input[name="name"]` —
+  por isso o adaptador ancora tudo no bloco do vendedor
+  (`//button[contains(.,"Enviar Mensagem")]/ancestor::*[.//textarea][1]`).
+  Busca: `/comprar/carros-usados/<uf|brasil>/<marca>[/<modelo>]` (uma
+  palavra só já vale, vira a marca); cards são `.deal-card` e o preço vem
+  quebrado em nós diferentes, então o texto é normalizado antes do regex.
+  Envio só entra no histórico quando a página confirma.
+- **NaPista como fonte de Compra** (ago/2026): o site **não tem
+  formulário de mensagem** — conferido em vários anúncios (`textarea` = 0).
+  Só existem "Enviar WhatsApp", "Ver telefone e endereço" e um formulário
+  que NÃO fala com o vendedor: é consulta de crédito (nome, celular,
+  e-mail e **CPF**) para as lojas parceiras. O bot não dispara WhatsApp
+  nem manda CPF para análise de crédito, então `compra_napista.py`
+  **procura e LISTA** os anúncios que batem com a busca (link, preço,
+  ano, km, cidade e loja) e não envia nada. Busca:
+  `/busca/<marca>[/<modelo>]?pn=<página>` (o `?q=` NÃO filtra); cards são
+  `a[href^="/anuncios/<uuid>"]` com tudo no texto do próprio link.
 - Fontes de Compra vivem em `SITES_COMPRA` (interface_bot.py) e são
   despachadas por `site` no run.py: `facebook` (run.py), `icarros`
-  (compra_icarros.py), `webmotors` (compra_webmotors.py) e `olx`
-  (compra_olx.py, **fora da lista** por decisão do usuário — Cloudflare;
-  para voltar, reincluir na lista).
+  (compra_icarros.py), `webmotors` (compra_webmotors.py), `mobiauto`
+  (compra_mobiauto.py), `napista` (compra_napista.py, só lista) e `olx`
+  (compra_olx.py). Módulo importado dentro da função precisa entrar em
+  `hiddenimports` do .spec, senão some no instalador.
 - **Webmotors** (ago/2026): na **Compra** está calibrada — busca
   `/carros/estoque/<marca>[/<modelo>]`, anúncio
   `/comprar/.../<id>` e formulário "Envie uma mensagem ao vendedor"
@@ -255,9 +279,10 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   qualquer marca) e os filtros de preço/ano por querystring são
   ignorados, então o bot lê o preço do card e filtra por faixa e por UF
   (a cidade está na URL do anúncio). Anúncio só com WhatsApp é pulado.
-- Análise das outras fontes: **Mobiauto** tem chat, mas exige login;
-  **NaPista** só oferece WhatsApp no anúncio; **Kavak** é revenda (não
-  há vendedor para abordar). Nenhum virou fonte de Compra.
+- Análise das outras fontes: **Mobiauto** e **NaPista** viraram fontes de
+  Compra (ver acima) — a Mobiauto, ao contrário do que a primeira análise
+  supôs, NÃO exige login para falar com o vendedor. **Kavak** segue de
+  fora: é revenda, não há vendedor para abordar.
 - Interface da Compra habilita por site o que cada um aceita: Facebook =
   CEP + raio em km; iCarros = dados de contato (o formulário exige) e
   produto com marca+modelo; OLX = ano de/até, km até e câmbio. O gating

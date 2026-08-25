@@ -92,6 +92,14 @@ def _executar():
         from compra_webmotors import executar
         executar(p)
         return
+    if site == "mobiauto":
+        from compra_mobiauto import executar
+        executar(p)
+        return
+    if site == "napista":
+        from compra_napista import executar
+        executar(p)
+        return
 
     fila = p.produtos
     if len(fila) > 1:

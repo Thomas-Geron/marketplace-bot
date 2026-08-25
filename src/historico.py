@@ -100,6 +100,15 @@ _SELETORES_VENDEDOR = {
         'a[href*="/loja/"]',
         '[data-qa*="seller" i]',
     ],
+    # a Mobiauto não expõe a loja na página do anúncio (conferido ao vivo):
+    # sem identidade, vale só a trava por URL — o bot não inventa quem é
+    "mobiauto": [
+        'a[href*="/loja/"]',
+        'a[href*="revendedor"]',
+    ],
+    "napista": [
+        'a[href*="carro-vendedor-"]',
+    ],
 }
 
 
