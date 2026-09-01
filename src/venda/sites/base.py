@@ -440,6 +440,10 @@ class SiteAdapter:
     # opções que a interface manda no parametros_venda.json e só fazem
     # sentido para um site (ex.: qual Página do Facebook usar)
     opcoes = {}
+    # em qual navegador este site roda: "chrome" (perfil do bot) ou "edge"
+    # (janela normal do PC, dirigida por CDP). A OLX bloqueia navegador
+    # iniciado pelo Playwright, então ela pede "edge".
+    navegador = "chrome"
 
     def abrir_novo_anuncio(self, pagina):
         """Navega até o formulário de novo anúncio, pronto para preencher."""

@@ -295,6 +295,9 @@ def iniciar():
         if getattr(site, "publicacao_manual", False) and disponivel:
             ttk.Label(linha_site, text="pago — o bot para antes do plano",
                       style="Aviso.TLabel").pack(side="left", padx=(6, 0))
+        if getattr(site, "navegador", "chrome") != "chrome" and disponivel:
+            ttk.Label(linha_site, text="abre no Microsoft Edge",
+                      style="Suave.TLabel").pack(side="left", padx=(6, 0))
         if not disponivel:
             ttk.Label(linha_site, text="Em breve",
                       style="Aviso.TLabel").pack(side="left", padx=(6, 0))

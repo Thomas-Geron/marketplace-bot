@@ -14,6 +14,7 @@ from venda.sites.site_icarros import SiteICarros
 from venda.sites.site_kavak import SiteKavak
 from venda.sites.site_mobiauto import SiteMobiauto
 from venda.sites.site_napista import SiteNaPista
+from venda.sites.site_olx import SiteOLX
 from venda.sites.site_webmotors import SiteWebmotors
 
 SITES = {
@@ -25,6 +26,7 @@ SITES = {
         SiteICarros(),
         SiteMobiauto(),
         SiteNaPista(),
+        SiteOLX(),
         SiteKavak(),
         SiteWebmotors(),
         # registre novos sites aqui

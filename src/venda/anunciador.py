@@ -23,6 +23,34 @@ from venda import anunciados
 from venda.sites import obter_site
 
 
+def abrir_abas(pw, sites_ids):
+    """Abre a home de cada site, na janela que ELE precisa.
+
+    Quase todos rodam no Chrome do perfil do bot; a OLX só funciona no
+    Edge iniciado normalmente (é o navegador sob automação que ela
+    bloqueia, não a marca — ver src/navegador.py). Por isso os sites são
+    agrupados por navegador e cada grupo ganha a sua janela: misturar
+    tudo num navegador só perderia o login salvo do outro.
+
+    Devolve (abas por site_id, contextos abertos).
+    """
+    janelas, abas = {}, {}
+    for site_id in sites_ids:
+        site = obter_site(site_id)
+        qual = getattr(site, "navegador", "chrome")
+        if qual not in janelas:
+            contexto, primeira = abrir_navegador(pw, qual)
+            janelas[qual] = {"contexto": contexto, "livre": primeira}
+        janela = janelas[qual]
+        aba = janela.pop("livre", None) or janela["contexto"].new_page()
+        aba.set_default_timeout(120000)
+        aba.goto(site.url_home)
+        abas[site_id] = aba
+        print(f"Aba aberta: {site.nome}" +
+              (f" (no {qual})" if qual != "chrome" else ""))
+    return abas, [j["contexto"] for j in janelas.values()]
+
+
 def carregar_parametros():
     with open(get_parametros_venda_path(), encoding="utf-8") as f:
         return json.load(f)
@@ -77,18 +105,8 @@ def _executar():
     print(f"{len(veiculos)} veículo(s) × {len(sites_ids)} site(s) — modo {modo}")
 
     with sync_playwright() as pw:
-        contexto, pagina = abrir_navegador(pw)
-        pagina.set_default_timeout(120000)
-
         # 1) abre uma aba por site para o usuário autenticar
-        abas = {}
-        for i, site_id in enumerate(sites_ids):
-            site = obter_site(site_id)
-            aba = pagina if i == 0 else contexto.new_page()
-            aba.set_default_timeout(120000)
-            aba.goto(site.url_home)
-            abas[site_id] = aba
-            print(f"Aba aberta: {site.nome}")
+        abas, contextos = abrir_abas(pw, sites_ids)
 
         esperar_prosseguir(
             "Faça login em TODOS os sites abertos e clique em 'Prosseguir'."
@@ -143,7 +161,8 @@ def _executar():
             f"\nConcluído: {feitos} publicado(s), {pulados} pulado(s) "
             f"pela trava anti-spam, de {total} combinação(ões)."
         )
-        contexto.close()
+        for contexto in contextos:
+            contexto.close()
 
 
 def _excluir(veiculos, sites_ids):
@@ -160,17 +179,7 @@ def _excluir(veiculos, sites_ids):
 
     print(f"EXCLUSÃO: {len(veiculos)} veículo(s) × {len(sites_ids)} site(s)")
     with sync_playwright() as pw:
-        contexto, pagina = abrir_navegador(pw)
-        pagina.set_default_timeout(120000)
-
-        abas = {}
-        for i, site_id in enumerate(sites_ids):
-            site = obter_site(site_id)
-            aba = pagina if i == 0 else contexto.new_page()
-            aba.set_default_timeout(120000)
-            aba.goto(site.url_home)
-            abas[site_id] = aba
-            print(f"Aba aberta: {site.nome}")
+        abas, contextos = abrir_abas(pw, sites_ids)
 
         esperar_prosseguir(
             "Confira que está logado nos sites e clique em 'Prosseguir'.")
@@ -199,7 +208,8 @@ def _excluir(veiculos, sites_ids):
 
         print("")
         print(f"Concluído: {excluidos} anúncio(s) excluído(s).")
-        contexto.close()
+        for contexto in contextos:
+            contexto.close()
 
 
 if __name__ == "__main__":
