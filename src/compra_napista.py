@@ -179,6 +179,9 @@ def executar(p):
         historico = Historico()
 
         for posicao, produto in enumerate(fila, start=1):
+            # cada veículo tem a SUA margem de preço
+            p.usar_produto(produto)
+            print(f"Faixa de preço: {p.texto_faixa()}")
             print("")
             print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
 

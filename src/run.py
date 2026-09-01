@@ -11,8 +11,10 @@ from navegador import abrir_navegador
 from filtros import pesquisar_produto, aplicar_localizacao, aplicar_preco
 from coleta import carregar_todos, calcular_alvo, coletar_links
 from historico import Historico, identificar_vendedor
+from limites import detectar_limite
 from mensagem import enviar_mensagem
 from sinal import esperar_prosseguir
+from venda.sites.base import dump_diagnostico
 from paths import get_parametros_path
 
 DEBUG = True
@@ -42,6 +44,10 @@ def carregar_parametros(caminho=None):
         quantidade=so_numeros(dados.get("quantidade")),
         dry_run=dados.get("dry_run", True),
         site=dados.get("site", "facebook"),
+        # a interface manda a lista; parametros.json antigo tem só `site`
+        sites=dados.get("sites") or [],
+        # faixa de preço por veículo (vazio = usa o preço padrão da tela)
+        faixas=dados.get("faixas") or [],
         ano_min=so_numeros(dados.get("ano_min")),
         ano_max=so_numeros(dados.get("ano_max")),
         km_max=so_numeros(dados.get("km_max")),
@@ -77,9 +83,27 @@ def _executar():
             print(" -", e)
         return
 
+    # a interface pode mandar VÁRIAS fontes: o bot faz uma de cada vez, na
+    # mesma execução, cada uma com a sua janela de navegador. Erro em uma
+    # não derruba as outras.
+    sites = list(getattr(p, "sites", None) or [getattr(p, "site", "facebook")])
+    if len(sites) > 1:
+        print(f"{len(sites)} fontes nesta execução: {', '.join(sites)}")
+    for posicao, site in enumerate(sites, start=1):
+        if len(sites) > 1:
+            print("")
+            print(f"########## fonte {posicao}/{len(sites)}: {site} ##########")
+        try:
+            _executar_site(site, p)
+        except Exception as exc:
+            print(f"[erro] a fonte {site} parou: {exc}")
+            print("       As demais fontes desta execução seguem.")
+
+
+def _executar_site(site, p):
+    """Roda UMA fonte. Cada módulo abre e fecha o próprio navegador."""
     # cada fonte que não é o Facebook roda em módulo próprio — o fluxo do
     # Facebook abaixo fica intacto
-    site = getattr(p, "site", "facebook")
     if site == "olx":
         from compra_olx import executar
         executar(p)
@@ -119,6 +143,8 @@ def _executar():
         historico = Historico()
 
         for posicao, produto in enumerate(fila, start=1):
+            # cada veículo tem a SUA margem de preço
+            p.usar_produto(produto)
             if len(fila) > 1:
                 print(f"\n=== produto {posicao}/{len(fila)}: {produto} ===")
 
@@ -188,6 +214,22 @@ def _executar():
                     continue
 
                 enviar_mensagem(pagina, p.mensagem, p.dry_run)
+
+                # o Facebook corta o envio depois de algumas mensagens e
+                # avisa na tela; daí em diante toda tentativa é perdida —
+                # o bot para no Marketplace em vez de insistir
+                aviso = detectar_limite(pagina)
+                if aviso:
+                    print("")
+                    print("O Facebook limitou o envio de mensagens desta "
+                          "conta:")
+                    print(f'  "{aviso}"')
+                    print("Parando o Marketplace por aqui. Tente de novo mais "
+                          "tarde — insistir agora só prejudica a conta.")
+                    dump_diagnostico(pagina, "facebook-compra",
+                                     "limite-de-mensagens")
+                    contexto.close()
+                    return
 
                 if not p.dry_run:
                     historico.registrar(link, "facebook", produto, p.mensagem,

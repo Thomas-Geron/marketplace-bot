@@ -391,6 +391,9 @@ def executar(p):
         historico = Historico()
 
         for posicao, produto in enumerate(fila, start=1):
+            # cada veículo tem a SUA margem de preço
+            p.usar_produto(produto)
+            print(f"Faixa de preço: {p.texto_faixa()}")
             busca = _busca_do_produto(p, produto)
             url = montar_url_busca(busca, uf)
             print("")
