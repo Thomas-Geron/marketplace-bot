@@ -67,10 +67,15 @@ bloco de login do Supabase se recolhe numa linha "Conectado: … [Sair]".
 
 Adaptadores plugáveis (1 arquivo por site + registro no `__init__.py`):
 `facebook` (form /marketplace/create/vehicle), `facebook_pagina` (post no
-feed da PÁGINA), `icarros` (PAGO — pagamento
+feed da PÁGINA), `olx` (assistente "desapega", roda no **Edge**),
+`icarros` (PAGO — pagamento
 manual), `mobiauto`, `napista` (conta de loja), `webmotors` (form atrás de
 login), `kavak` (funil de COTAÇÃO, não é classificado) e `demo` (formulário
 local em assets/ para testes).
+Cada adaptador declara em que navegador roda (`navegador = "chrome"` ou
+`"edge"`); `anunciador.abrir_abas` agrupa os sites por navegador e abre
+uma janela para cada grupo — misturar tudo numa só perderia o login salvo
+do outro perfil.
 Opção que só faz sentido para um site (ex.: qual Página do Facebook usar)
 vai em `parametros_venda.json` → `opcoes[<site_id>]` e chega no adaptador
 como `self.opcoes`. `finalizar(pagina)` roda ao fim do site, mesmo com
@@ -129,6 +134,37 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   isso o bot do Marketplace ficaria bloqueado na execução seguinte.
   Ensaiado ao vivo com veículo fictício: troca de perfil, texto e upload
   de fotos conferidos; nada foi publicado.
+- **OLX (Venda) calibrada** (ago/2026, ao vivo no Edge): assistente de
+  uma URL só (`www2.olx.com.br/desapega`), sempre avançando pelo
+  "Continuar" — categoria → "Carros, vans e utilitários" → "Entendi,
+  vamos começar" → **placa** em sete caixas (`#digit-0`…`#digit-6`; sem
+  placa não dá para anunciar) → diálogo "Encontramos seu veículo" com a
+  versão em `input[type=radio]` (aria-label = versão) → selects nativos
+  `#cartype #gearbox #doors #fuel #car_steering #motorpower #carcolor`
+  (já pré-preenchidos pela placa) → `#mileage` (máscara: digitar) →
+  itens de série em chips `button.olx-core-chip` com **`data-selected`**
+  (clicar num marcado DESMARCA, então só entram os `false`) → detalhes
+  opcionais (quitado/IPVA/único dono: o bot não marca nada) → fotos em
+  `#lastStepImageInput` (**obrigatórias**, mínimo 50×50; com menos de 6
+  aparece "Continuar sem adicionar") → vídeo (pulado) →
+  `#body-text-area` → `#zipcode` (vem da conta) → preço: "Inserir preço
+  manual" libera `#price`, e a OLX ainda oferece baixar o valor — o bot
+  clica em "Continuar com R$<seu preço>". O "Continuar" desabilitado é
+  `aria-disabled`, não `disabled`.
+- **Cota grátis da OLX**: acabando os anúncios de carro gratuitos, o
+  último passo cai em `adquirir.olx.com.br/destaques` (planos) e o
+  anúncio fica em "Meus anúncios → **Acima do Limite**", NÃO publicado.
+  `publicar()` reconhece essa tela, avisa e liga `publicacao_manual`
+  para o anunciador não registrar nada. Foi o que aconteceu na
+  calibração (a conta de teste está sem cota até 24/11/2026), então a
+  publicação gratuita ponta a ponta ainda não foi vista.
+- **Exclusão na OLX**: `conta.olx.com.br/anuncios` (e a aba
+  `/anuncios/acima-do-limite`) lista cards
+  `[data-testid="myads-ad-item"]` (`myads-ad-title-label`,
+  `myads-ad-price-label`); "Excluir" abre um diálogo que **pede o
+  motivo** (labels "Vendi em outra plataforma", "Desisti de vender", …,
+  "Outro Motivo") antes do `button[type=submit]` "Excluir". O adaptador
+  marca "Outro Motivo" — o bot não inventa motivo comercial.
 - **Exclusão de anúncio ainda não confirmada ao vivo**: a conta de teste
   não tem nenhum classificado no ar ("Seus classificados" vazio) nem post
   de veículo na Página, então o caminho menu (…) → "Excluir" → confirmar
@@ -204,7 +240,30 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   para **iCarros e Webmotors**, que pedem de fato — na Mobiauto quem pede
   CPF é o financiamento, que o bot não preenche, então o campo some da
   tela. Facebook, OLX e NaPista não recebem nada disso.
-- Compra em **fila**: o campo Produtos aceita um nome por linha e o bot
+- **Várias fontes por execução** (ago/2026): a tela de Compra virou
+  caixas de seleção (`sites_escolhidos()`), o JSON leva `sites` (e mantém
+  `site` = a primeira, para compatibilidade) e o run.py roda uma fonte
+  por vez em `_executar_site`, cada uma com a sua janela e o seu
+  "Prosseguir". Erro numa fonte não derruba as outras. Os campos da tela
+  são a UNIÃO do que as fontes marcadas usam (`campos_dos_sites`).
+- **Limite de mensagens do Facebook** (`src/limites.py`): o Marketplace
+  corta o envio depois de algumas mensagens e mostra o aviso na tela
+  ("atingiu o limite", "ação bloqueada", "temporariamente bloqueado",
+  "rápido demais"…). `detectar_limite` reconhece o aviso, o bot PARA no
+  Facebook (as outras fontes seguem) e grava a tela em
+  `debug/facebook-compra` — é de lá que sai o texto exato para ampliar a
+  lista. O bot não tenta contornar, não espera em loop e não troca de
+  conta.
+- **Faixa de preço POR veículo** (ago/2026): a tela de Compra virou uma
+  tabela — cada linha é um veículo com "Preço de/até" próprio, porque um
+  hatch popular e uma picape não se procuram na mesma margem. O JSON leva
+  `faixas: [{produto, preco_min, preco_max}]`; `Parametros.usar_produto()`
+  troca `preco_min/preco_max` para a faixa do veículo da vez (chamado no
+  começo de cada volta da fila, em todas as fontes) e cai no **preço
+  padrão** da tela quando a linha fica vazia — campo a campo, então dá
+  para preencher só o máximo. `validar` recusa faixa invertida dizendo
+  qual veículo é.
+- Compra em **fila**: a tabela de veículos define a ordem e o bot
   faz um de cada vez, do começo ao fim, na mesma sessão do navegador. A
   **quantidade máxima vale POR NOME** (não é dividida entre eles) — quem
   guarda a fila é `Parametros.produtos`, e `produto` continua sendo o
@@ -308,7 +367,10 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 
 - Não alterar a lógica do bot de Compra no Facebook (filtros/coleta/
   mensagem/timing em run.py, filtros.py, coleta.py, mensagem.py e
-  config.py). A OLX vive em `src/compra_olx.py` (fluxo paralelo) e pode
+  config.py). Duas exceções pedidas pelo Thomas, que NÃO mexem nesses
+  passos: a coleta passou a ordenar por posição na tela e o laço para
+  quando `limites.detectar_limite` reconhece o aviso de limite de
+  mensagens do Facebook. A OLX vive em `src/compra_olx.py` (fluxo paralelo) e pode
   evoluir livremente.
 - `python src/main.py` roda em dev; `--run-bot`, `--run-venda` e
   `--install-browser` são as flags internas.
