@@ -38,7 +38,7 @@ from navegador import abrir_navegador
 from sinal import esperar_prosseguir
 from venda.sites.base import (
     detectar_barreira, digitar, dump_diagnostico, fechar_cookies,
-    preencher_campo)
+    preencher_campo, texto_da_pagina)
 
 HOST = "https://www.mobiauto.com.br"
 # /comprar/carros/<uf-cidade>/<marca>/<modelo>/<ano>/<versao>/detalhes/<id>
@@ -283,6 +283,13 @@ def executar(p):
                 if bloqueado:
                     print(f"  [pulado] {motivo}")
                     continue
+                # peneira por palavras: o que este veículo exige e o
+                # que a busca inteira recusa
+                serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
+                if not serve:
+                    print(f"  [pulado] {motivo}")
+                    continue
+
 
                 if enviar_mensagem_mobiauto(pagina, p, p.dry_run):
                     historico.registrar(link, "mobiauto", produto, p.mensagem,

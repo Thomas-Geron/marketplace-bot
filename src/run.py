@@ -14,7 +14,7 @@ from historico import Historico, identificar_vendedor
 from limites import detectar_limite
 from mensagem import enviar_mensagem
 from sinal import esperar_prosseguir
-from venda.sites.base import dump_diagnostico
+from venda.sites.base import dump_diagnostico, texto_da_pagina
 from paths import get_parametros_path
 
 DEBUG = True
@@ -48,6 +48,8 @@ def carregar_parametros(caminho=None):
         sites=dados.get("sites") or [],
         # faixa de preço por veículo (vazio = usa o preço padrão da tela)
         faixas=dados.get("faixas") or [],
+        # palavras que fazem o bot pular o anúncio (busca inteira)
+        ignorar_palavras=dados.get("ignorar_palavras", ""),
         ano_min=so_numeros(dados.get("ano_min")),
         ano_max=so_numeros(dados.get("ano_max")),
         km_max=so_numeros(dados.get("km_max")),
@@ -210,6 +212,13 @@ def _executar_site(site, p):
                 vendedor = identificar_vendedor(pagina, "facebook")
                 bloqueado, motivo = historico.ja_contatado(link, vendedor)
                 if bloqueado:
+                    print(f"    [pulado] {motivo}")
+                    continue
+
+                # peneira por palavras: o que o veículo da vez exige e o
+                # que a busca inteira recusa
+                serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
+                if not serve:
                     print(f"    [pulado] {motivo}")
                     continue
 

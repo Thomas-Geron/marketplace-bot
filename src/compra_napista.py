@@ -35,7 +35,9 @@ from compra_olx import uf_do_cep
 from historico import Historico
 from navegador import abrir_navegador
 from sinal import esperar_prosseguir
-from venda.sites.base import detectar_barreira, dump_diagnostico, fechar_cookies
+from venda.sites.base import (
+    detectar_barreira, dump_diagnostico, fechar_cookies,
+    texto_da_pagina)
 
 HOST = "https://napista.com.br"
 PADRAO_ANUNCIO = re.compile(r"^/anuncios/[0-9a-f-]{20,}$")
@@ -228,6 +230,13 @@ def executar(p):
 
                 if posicao == 1 and i == 0:
                     dump_diagnostico(pagina, "napista-compra", "anuncio")
+
+                # peneira por palavras: o que este veículo exige e o que a
+                # busca inteira recusa
+                serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
+                if not serve:
+                    print(f"  [pulado] {motivo}")
+                    continue
 
                 loja = _vendedor_do_anuncio(pagina)
                 formas = _formas_de_contato(pagina) or ["nenhum contato direto"]

@@ -28,7 +28,10 @@ class Parametros:
     cambio: str = ""
     produtos: List[str] = field(default_factory=list)
     sites: List[str] = field(default_factory=list)
-    # faixa de preço POR veículo: [{produto, preco_min, preco_max}].
+    # palavras que o bot NUNCA quer ver no anúncio (vale para a busca
+    # inteira): "leilão", "sinistro", "batido"…
+    ignorar_palavras: str = ""
+    # faixa de preço POR veículo: [{produto, preco_min, preco_max, palavras}].
     # Cada carro tem a sua margem — um hatch popular e uma picape não se
     # procuram na mesma faixa. O que ficar vazio cai no preço padrão da
     # tela (preco_min/preco_max).
@@ -63,9 +66,15 @@ class Parametros:
             nome = str(item.get("produto") or "").strip()
             if not nome:
                 continue
-            self._faixas[chave_produto(nome)] = (
-                so_numeros(item.get("preco_min")),
-                so_numeros(item.get("preco_max")))
+            self._faixas[chave_produto(nome)] = {
+                "min": so_numeros(item.get("preco_min")),
+                "max": so_numeros(item.get("preco_max")),
+                # palavras que o anúncio DEVE conter para valer a mensagem
+                "palavras": _lista_de_palavras(item.get("palavras")),
+            }
+        # palavras exigidas pelo veículo da vez (usar_produto troca)
+        self.palavras_exigidas = []
+
         # o preço da tela é o PADRÃO: vale para o veículo sem faixa própria
         # (aceita número ou texto — a interface manda o que o usuário digitou)
         self.preco_min = so_numeros(self.preco_min)
@@ -91,10 +100,32 @@ class Parametros:
         veículo da vez, caindo no padrão da tela quando ele não tem uma.
         Devolve (mínimo, máximo) já aplicados.
         """
-        minimo, maximo = self._faixas.get(chave_produto(nome), (None, None))
+        faixa = self._faixas.get(chave_produto(nome), {})
+        minimo, maximo = faixa.get("min"), faixa.get("max")
         self.preco_min = self._preco_min_padrao if minimo is None else minimo
         self.preco_max = self._preco_max_padrao if maximo is None else maximo
+        self.palavras_exigidas = faixa.get("palavras", [])
         return self.preco_min, self.preco_max
+
+    def anuncio_serve(self, texto) -> tuple:
+        """(serve?, motivo) para o texto de um anúncio.
+
+        Duas peneiras, ambas opcionais: as palavras que o veículo da vez
+        EXIGE (basta uma bater) e as que a busca inteira recusa. Só é
+        chamada quando o bot já tem o texto do anúncio na mão — sem texto,
+        o anúncio passa (o bot não descarta pelo que não conseguiu ler).
+        """
+        chave = chave_produto(texto)
+        if not chave:
+            return True, ""
+        for palavra in _lista_de_palavras(self.ignorar_palavras):
+            if chave_produto(palavra) in chave:
+                return False, f"o anúncio fala em '{palavra}'"
+        exigidas = getattr(self, "palavras_exigidas", []) or []
+        if exigidas and not any(chave_produto(p) in chave for p in exigidas):
+            return False, ("o anúncio não fala em "
+                           + " nem ".join(f"'{p}'" for p in exigidas))
+        return True, ""
 
     def texto_faixa(self) -> str:
         """Como a faixa atual aparece no log."""
@@ -106,6 +137,15 @@ class Parametros:
             return f"a partir de R$ {self.preco_min:,}".replace(",", ".")
         return (f"R$ {self.preco_min:,} a R$ {self.preco_max:,}"
                 .replace(",", "."))
+
+
+def _lista_de_palavras(valor) -> list:
+    """Aceita texto separado por vírgula/linha ou lista pronta."""
+    if valor is None:
+        return []
+    if isinstance(valor, str):
+        valor = re.split("[,;\n]", valor)
+    return [str(item).strip() for item in valor if str(item).strip()]
 
 
 def chave_produto(nome) -> str:

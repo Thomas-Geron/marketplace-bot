@@ -34,7 +34,7 @@ from navegador import abrir_navegador
 from sinal import esperar_prosseguir
 from venda.sites.base import (
     clicar, detectar_barreira, dump_diagnostico, fechar_cookies,
-    preencher_campo)
+    preencher_campo, texto_da_pagina)
 
 HOST = "https://www.icarros.com.br"
 # /comprar/<cidade-uf>/<marca>/<modelo>/<ano>/<id>
@@ -279,6 +279,13 @@ def executar(p):
                 if bloqueado:
                     print(f"  [pulado] {motivo}")
                     continue
+                # peneira por palavras: o que este veículo exige e o
+                # que a busca inteira recusa
+                serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
+                if not serve:
+                    print(f"  [pulado] {motivo}")
+                    continue
+
 
                 enviado = enviar_mensagem_icarros(pagina, p, p.dry_run)
                 if enviado:

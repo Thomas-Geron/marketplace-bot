@@ -33,7 +33,7 @@ from navegador import abrir_navegador
 from sinal import esperar_prosseguir
 from venda.sites.base import (
     clicar, detectar_barreira, dump_diagnostico, esperar_desafio_humano,
-    fechar_cookies, preencher_campo)
+    fechar_cookies, preencher_campo, texto_da_pagina)
 
 HOST = "https://www.webmotors.com.br"
 PADRAO_ANUNCIO = re.compile(
@@ -245,6 +245,13 @@ def executar(p):
                     print(f"  [pulado] {motivo}")
 
                     continue
+                # peneira por palavras: o que este veículo exige e o
+                # que a busca inteira recusa
+                serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
+                if not serve:
+                    print(f"  [pulado] {motivo}")
+                    continue
+
 
 
                 enviado = enviar_mensagem_webmotors(pagina, p, p.dry_run)

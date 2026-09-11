@@ -42,7 +42,7 @@ from navegador import abrir_navegador
 from sinal import esperar_prosseguir
 from venda.sites.base import (
     clicar, detectar_barreira, dump_diagnostico, esperar_formulario,
-    fechar_cookies, preencher_campo)
+    fechar_cookies, preencher_campo, texto_da_pagina)
 
 CAMINHO_BUSCA = "/autos-e-pecas/carros-vans-e-utilitarios"
 
@@ -464,6 +464,13 @@ def executar(p):
                     print(f"  [pulado] {motivo}")
 
                     continue
+                # peneira por palavras: o que este veículo exige e o
+                # que a busca inteira recusa
+                serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
+                if not serve:
+                    print(f"  [pulado] {motivo}")
+                    continue
+
 
 
                 enviado = enviar_mensagem_olx(pagina, p.mensagem, p.dry_run)

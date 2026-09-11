@@ -193,6 +193,7 @@ def iniciar():
             "ano_max":    ent_ano_max.get().strip(),
             "km_max":     ent_km_max.get().strip(),
             "cambio":     cmb_cambio.get(),
+            "ignorar_palavras": ent_ignorar.get().strip(),
         }
         if not produtos or not params["mensagem"]:
             status.set("Erro: informe ao menos um veículo e a mensagem.")
@@ -314,34 +315,34 @@ def iniciar():
                    "faz a fila em ordem, terminando um antes de começar o "
                    "próximo.",
               style="Suave.TLabel", wraplength=380, justify="left").grid(
-        row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+        row=0, column=0, columnspan=5, sticky="w", pady=(0, 6))
 
     cabecalho = ttk.Frame(sec_busca)
-    cabecalho.grid(row=1, column=0, columnspan=4, sticky="we")
+    cabecalho.grid(row=1, column=0, columnspan=5, sticky="we")
     for coluna, (texto, largura) in enumerate(
-            (("Veículo", 22), ("Preço de", 9), ("até", 9), ("", 3))):
+            (("Veículo", 20), ("Preço de", 9), ("até", 9),
+             ("Deve conter", 18), ("", 3))):
         ttk.Label(cabecalho, text=texto, style="Suave.TLabel",
                   width=largura).grid(row=0, column=coluna, sticky="w",
                                       padx=(0, 4))
 
     quadro_veiculos = ttk.Frame(sec_busca)
-    quadro_veiculos.grid(row=2, column=0, columnspan=4, sticky="we")
+    quadro_veiculos.grid(row=2, column=0, columnspan=5, sticky="we")
     linhas_veiculos = []
 
     def remover_linha(linha_alvo):
         """Tira a linha da tela; a última sobrevive (sempre há uma vazia)."""
         if len(linhas_veiculos) <= 1:
-            linha_alvo["nome"].delete(0, "end")
-            linha_alvo["min"].delete(0, "end")
-            linha_alvo["max"].delete(0, "end")
+            for campo in ("nome", "min", "max", "palavras"):
+                linha_alvo[campo].delete(0, "end")
             return
         linha_alvo["frame"].destroy()
         linhas_veiculos.remove(linha_alvo)
 
-    def adicionar_linha(nome="", preco_min="", preco_max=""):
+    def adicionar_linha(nome="", preco_min="", preco_max="", palavras=""):
         frame = ttk.Frame(quadro_veiculos)
         frame.pack(fill="x", pady=1)
-        ent_veiculo = ttk.Entry(frame, width=22)
+        ent_veiculo = ttk.Entry(frame, width=20)
         ent_veiculo.grid(row=0, column=0, sticky="we", padx=(0, 4))
         ent_de = ttk.Entry(frame, width=9, validate="key",
                            validatecommand=vcmd)
@@ -349,16 +350,20 @@ def iniciar():
         ent_ate = ttk.Entry(frame, width=9, validate="key",
                             validatecommand=vcmd)
         ent_ate.grid(row=0, column=2, padx=(0, 4))
+        ent_palavras = ttk.Entry(frame, width=18)
+        ent_palavras.grid(row=0, column=3, padx=(0, 4))
         for entrada, valor in ((ent_veiculo, nome), (ent_de, preco_min),
-                               (ent_ate, preco_max)):
+                               (ent_ate, preco_max),
+                               (ent_palavras, palavras)):
             if valor:
                 entrada.insert(0, str(valor))
         linha_nova = {"frame": frame, "nome": ent_veiculo,
-                      "min": ent_de, "max": ent_ate}
+                      "min": ent_de, "max": ent_ate,
+                      "palavras": ent_palavras}
         tk.Button(frame, text="×", width=2, relief="flat", cursor="hand2",
                   bg=ui_tema.CORES["cartao"], fg=ui_tema.CORES["perigo"],
                   command=lambda: remover_linha(linha_nova)).grid(row=0,
-                                                                  column=3)
+                                                                  column=4)
         linhas_veiculos.append(linha_nova)
         return linha_nova
 
@@ -376,7 +381,9 @@ def iniciar():
                 continue
             itens.append({"produto": nome_digitado,
                           "preco_min": linha_atual["min"].get().strip(),
-                          "preco_max": linha_atual["max"].get().strip()})
+                          "preco_max": linha_atual["max"].get().strip(),
+                          # anúncio só vale se falar em alguma delas
+                          "palavras": linha_atual["palavras"].get().strip()})
         return itens
 
     ttk.Label(sec_busca, text="Preço padrão").grid(row=4, column=0, sticky="w")
@@ -386,9 +393,22 @@ def iniciar():
     ent_max = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
     ent_max.grid(row=4, column=3, sticky="w", pady=2)
     ttk.Label(sec_busca,
-              text="Vale para as linhas que ficarem sem faixa própria.",
+              text="Vale para as linhas que ficarem sem faixa própria. Em "
+                   "\"Deve conter\", separe por vírgula (ex.: repasse, "
+                   "assumir financiamento) — o anúncio precisa falar em "
+                   "pelo menos uma.",
               style="Suave.TLabel", wraplength=380, justify="left").grid(
-        row=5, column=0, columnspan=4, sticky="w", pady=(0, 6))
+        row=5, column=0, columnspan=5, sticky="w", pady=(0, 6))
+
+    ttk.Label(sec_busca, text="Ignorar com").grid(row=7, column=0, sticky="w")
+    ent_ignorar = ttk.Entry(sec_busca, width=30)
+    ent_ignorar.grid(row=7, column=1, columnspan=3, sticky="we", pady=2)
+    ttk.Label(sec_busca,
+              text="Anúncio que falar em alguma dessas palavras é pulado "
+                   "(ex.: leilão, sinistro, batido). Vale para a busca "
+                   "inteira.",
+              style="Suave.TLabel", wraplength=380, justify="left").grid(
+        row=8, column=0, columnspan=5, sticky="w", pady=(0, 4))
 
     ttk.Label(sec_busca, text="Quantidade").grid(row=6, column=0, sticky="w")
     ent_qtd = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)

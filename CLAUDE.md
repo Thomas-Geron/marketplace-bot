@@ -363,6 +363,43 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   saem como "Em breve" na interface, o que torna a versão publicável
   mesmo com a calibração incompleta.
 
+## Plano de novas features (set/2026)
+
+Ordem combinada com o Thomas, a partir das ideias das duas anotações:
+
+1. **Publicar em grupos (Página)** — FEITO no código. A linha
+   "Compartilhar nos grupos" das Configurações do post abre uma sub-tela
+   com os grupos de que a PÁGINA participa e um "Concluir". Na
+   calibração a resposta foi **"Nenhum grupo encontrado"**: a Página não
+   entrou em nenhum grupo (e o perfil pessoal só participa de 1, sem
+   relação com carros). O adaptador marca os nomes escritos na interface
+   (`opcoes.grupos_facebook`), avisa quais não achou e nunca troca um
+   grupo por outro parecido; a lista real de grupos sai no log na
+   primeira execução com grupos de verdade. **Falta**: a Página entrar
+   nos grupos para fechar a calibração.
+2. **Filtro por palavras na Compra** — FEITO. Cada linha da tabela de
+   veículos tem "Deve conter" (o anúncio precisa falar em pelo menos uma
+   das palavras) e a busca inteira tem "Ignorar com" (leilão, sinistro,
+   batido…). É assim que se garimpa repasse/quitação: basta uma linha
+   com o termo de busca e as palavras exigidas. `anuncio_serve()` em
+   parametros.py decide, e sem texto lido o anúncio PASSA (não ler não é
+   motivo para descartar).
+3. **Portais de banco / leilão** — pesquisado, ainda não implementado.
+   Os bancos (Santander, Bradesco, BV, Pan, Itaú) **não vendem no
+   próprio site**: encaminham para leiloeiro. Dois portais conferidos ao
+   vivo, ambos com estoque PÚBLICO e sem login para navegar:
+   `loopleiloes.com.br` (grupo Santander/Webmotors — 1828 veículos,
+   busca por marca/modelo, lotes em `/leilao/<evento>/<carro>/<id>`) e
+   `sodresantoro.com.br/veiculos` (843 veículos, filtros por
+   querystring `?lot_category=carros`, com aba **Judiciais**, que é o
+   caso "empresa que quebrou"). Venda direta de banco existe, mas é para
+   lojista credenciado (CNPJ) — precisa de credenciamento antes de
+   virar automação. Decisão registrada: **monitorar sim, dar lance
+   não** — lance é compromisso financeiro com prazo, e um seletor errado
+   viraria dinheiro perdido.
+4. **Painel de chats agregados** — não começado; escopo grande, começar
+   por leitura no Facebook.
+
 ## Restrições
 
 - Não alterar a lógica do bot de Compra no Facebook (filtros/coleta/

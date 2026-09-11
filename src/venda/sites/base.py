@@ -69,6 +69,18 @@ _BARREIRAS_TEXTO = (
 )
 
 
+def texto_da_pagina(pagina):
+    """Texto visível da página, ou "" quando não dá para ler.
+
+    Serve para as peneiras que olham o conteúdo do anúncio: sem texto, o
+    bot NÃO descarta nada — não conseguir ler não é motivo para pular.
+    """
+    try:
+        return pagina.locator("body").inner_text(timeout=8000) or ""
+    except Exception:
+        return ""
+
+
 def detectar_barreira(pagina):
     """Se a página for login ou bloqueio antibot, devolve o motivo (str);
     senão, None. Serve para o bot parar com uma mensagem clara em vez de
