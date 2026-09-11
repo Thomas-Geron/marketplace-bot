@@ -26,6 +26,12 @@ Fluxo calibrado ao vivo (ago/2026):
    compartilhar em grupos, story e "Turbinar post"), e o botão final é
    `[aria-label="Postar"]`. **Turbinar post é anúncio PAGO** — o bot não
    encosta nele.
+5. a linha "Compartilhar nos grupos" abre uma sub-tela com os grupos de
+   que a PÁGINA participa e um "Concluir". Ela só lista grupos em que a
+   Página entrou: na calibração (ago/2026) a resposta foi "Nenhum grupo
+   encontrado", porque a Página não participa de nenhum. O bot marca os
+   grupos que você escreveu na interface, avisa quais não achou e nunca
+   escolhe um grupo parecido no lugar do pedido.
 
 Diferente do Marketplace, o post não tem campos estruturados: tudo (ano,
 km, cor, câmbio, opcionais, preço) vai no texto, formatado.
@@ -165,6 +171,93 @@ def montar_texto(veiculo):
     return "\n".join(linhas)
 
 
+def _grupos_pedidos(opcoes):
+    """Nomes de grupo que o usuário escreveu na interface."""
+    bruto = (opcoes or {}).get("grupos_facebook", "")
+    if isinstance(bruto, str):
+        bruto = bruto.splitlines()
+    return [str(nome).strip() for nome in (bruto or []) if str(nome).strip()]
+
+
+def _compartilhar_em_grupos(pagina, nomes):
+    """Marca, na tela 'Compartilhar nos grupos', os grupos pedidos.
+
+    Devolve os nomes realmente marcados. Grupo que não aparece na lista
+    NÃO é substituído por outro parecido: o bot avisa e segue sem ele.
+    """
+    linha = pagina.locator(
+        '[role="button"]:has-text("Compartilhar nos grupos")').first
+    if linha.count() == 0:
+        print("  ! a opção 'Compartilhar nos grupos' não apareceu")
+        return []
+    linha.click()
+    pagina.wait_for_timeout(6000)
+
+    disponiveis = pagina.evaluate(r"""
+      () => {
+        const d = [...document.querySelectorAll('[role="dialog"]')]
+          .filter(e => /Compartilhar nos grupos/.test(e.innerText || ''))
+          .pop();
+        if (!d) return null;
+        if (/Nenhum grupo encontrado/i.test(d.innerText || '')) return [];
+        return [...d.querySelectorAll('[role="checkbox"],[role="button"],label')]
+          .map(e => (e.innerText || '').replace(/\s+/g, ' ').trim())
+          .filter(t => t && t !== 'Concluir' && t !== 'Voltar')
+          .slice(0, 40);
+      }
+    """)
+    if disponiveis is None:
+        print("  ! não consegui ler a lista de grupos")
+        dump_diagnostico(pagina, "facebook_pagina", "grupos-sem-lista")
+        return []
+    if not disponiveis:
+        print("  - a Página não participa de nenhum grupo: para usar esta "
+              "opção, entre nos grupos COM a Página")
+        _concluir_grupos(pagina)
+        return []
+
+    print(f"  grupos disponíveis: {', '.join(disponiveis[:10])}")
+    marcados = []
+    for nome in nomes:
+        alvo = pagina.locator(
+            f'[role="dialog"] [role="checkbox"]:has-text("{nome}")').first
+        if alvo.count() == 0:
+            alvo = pagina.locator(
+                f'[role="dialog"] [role="button"]:has-text("{nome}")').first
+        if alvo.count() == 0:
+            print(f"  ! grupo '{nome}' não está na lista da Página — pulei")
+            continue
+        try:
+            alvo.click()
+            pagina.wait_for_timeout(800)
+            marcados.append(nome)
+        except Exception as exc:
+            print(f"  ! não consegui marcar '{nome}': {exc}")
+
+    if not marcados:
+        dump_diagnostico(pagina, "facebook_pagina", "grupos-nada-marcado")
+    else:
+        print(f"  OK compartilhar em: {', '.join(marcados)}")
+    _concluir_grupos(pagina)
+    return marcados
+
+
+def _concluir_grupos(pagina):
+    """Fecha a sub-tela de grupos, voltando para as configurações do post."""
+    for sel in ('[aria-label="Concluir"]',
+                '[role="dialog"] [role="button"]:has-text("Concluir")',
+                '[role="dialog"] [aria-label="Voltar"]'):
+        alvo = pagina.locator(sel).last
+        try:
+            if alvo.count() and alvo.is_visible():
+                alvo.click()
+                pagina.wait_for_timeout(4000)
+                return True
+        except Exception:
+            continue
+    return False
+
+
 class SiteFacebookPagina(SiteAdapter):
     id = "facebook_pagina"
     nome = "Facebook (Página)"
@@ -217,6 +310,13 @@ class SiteFacebookPagina(SiteAdapter):
         if clicar(pagina, ['[role="dialog"] [aria-label="Avançar"]'],
                   "Avançar"):
             pagina.wait_for_timeout(3000)
+
+        # o mesmo post pode ir para os grupos da Página, se você listou
+        # algum na interface (o Facebook trata disparo em muitos grupos de
+        # uma vez como spam — escolha poucos e relevantes)
+        pedidos = _grupos_pedidos(self.opcoes)
+        if pedidos:
+            _compartilhar_em_grupos(pagina, pedidos)
         # "Turbinar post" fica como está (desligado): turbinar é anúncio pago
         clicar(pagina, ['[role="dialog"] [aria-label="Postar"]',
                         '[role="dialog"] [role="button"]:has-text("Postar")'],

@@ -234,8 +234,10 @@ def iniciar():
 
         if "facebook_pagina" in marcados:
             quadro_pagina_fb.pack(anchor="w", pady=(4, 0))
+            quadro_grupos_fb.pack(fill="x", pady=(4, 0))
         else:
             quadro_pagina_fb.pack_forget()
+            quadro_grupos_fb.pack_forget()
 
         if precisa_pessoais or com_login:
             sec_dados.grid(row=linha_dados, column=0, sticky="we", pady=(0, 8))
@@ -316,6 +318,20 @@ def iniciar():
               text="(em branco = a única que você administra)",
               style="Suave.TLabel").pack(side="left", padx=(6, 0))
 
+    # o mesmo post pode ir para grupos de que a PÁGINA participa
+    quadro_grupos_fb = ttk.Frame(sec_sites)
+    ttk.Label(quadro_grupos_fb, text="Grupos (um por linha):").pack(anchor="w")
+    txt_grupos_fb = tk.Text(quadro_grupos_fb, height=2, relief="solid",
+                            borderwidth=1, font=(ui_tema.FONTE, 9),
+                            wrap="none")
+    txt_grupos_fb.pack(fill="x")
+    ttk.Label(quadro_grupos_fb,
+              text="Só entram grupos em que a PÁGINA entrou. Poucos e "
+                   "relevantes: disparo em muitos grupos de uma vez é o que "
+                   "o Facebook trata como spam.",
+              style="Suave.TLabel", wraplength=420, justify="left").pack(
+        anchor="w")
+
     ttk.Label(sec_sites,
               text="Cada veículo é anunciado no máximo UMA vez por site "
                    "(anti-spam).", style="Suave.TLabel").pack(anchor="w",
@@ -357,7 +373,12 @@ def iniciar():
             "acao": acao,
             "opcoes": {
                 "facebook_pagina": {
-                    "pagina_facebook": ent_pagina_fb.get().strip()},
+                    "pagina_facebook": ent_pagina_fb.get().strip(),
+                    "grupos_facebook": [
+                        linha.strip() for linha
+                        in txt_grupos_fb.get("1.0", "end").splitlines()
+                        if linha.strip()],
+                },
             },
         }
         with open(get_parametros_venda_path(), "w", encoding="utf-8") as f:
