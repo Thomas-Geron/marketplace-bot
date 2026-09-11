@@ -126,6 +126,10 @@ def _executar_site(site, p):
         from compra_napista import executar
         executar(p)
         return
+    if site == "leiloes":
+        from compra_leiloes import executar
+        executar(p)
+        return
 
     fila = p.produtos
     if len(fila) > 1:

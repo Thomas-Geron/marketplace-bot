@@ -44,6 +44,7 @@ SITES_COMPRA = [
     ("Mobiauto", "mobiauto"),
     ("OLX", "olx"),
     ("NaPista (só lista)", "napista"),
+    ("Leilões: Loop e Sodré (só lista)", "leiloes"),
 ]
 
 SEPARADOR = chr(10) * 2   # linha em branco entre as dicas
@@ -70,6 +71,11 @@ DICAS = {
                  "nome/e-mail/celular e a mensagem — CPF não, quem pede CPF "
                  "ali é o financiamento, e o bot não mexe nele. A região vem "
                  "do estado do CEP e o preço é filtrado pelo bot."),
+    "leiloes": ("Procura lotes nos leilões da Loop (grupo Santander) e da "
+                "Sodré Santoro, incluindo os judiciais, e LISTA com data, "
+                "lance, origem e condição. O bot NUNCA dá lance. 'Média/grande "
+                "monta' é carro sinistrado — ponha 'monta' em 'Ignorar com' "
+                "para tirar. Leilão é nacional: a cidade vem no resultado."),
     "napista": ("A NaPista não tem formulário de mensagem — só WhatsApp e "
                 "telefone da loja. Aqui o bot PROCURA e LISTA os anúncios que "
                 "batem com a busca (link, preço, ano, km e cidade); falar com "
@@ -288,8 +294,8 @@ def iniciar():
     sec_site.columnconfigure(0, weight=1)
     ttk.Label(sec_site,
               text="Marque quantas quiser: o bot faz uma fonte de cada vez, "
-                   "na mesma execução — cada uma abre a sua janela e pede um "
-                   "'Prosseguir'.",
+                   "na mesma execução — cada uma abre a sua janela e, quando "
+                   "precisa, pede um 'Prosseguir'.",
               style="Suave.TLabel", wraplength=400, justify="left").grid(
         row=0, column=0, sticky="w", pady=(0, 4))
     quadro_sites = ttk.Frame(sec_site)

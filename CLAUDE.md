@@ -296,7 +296,8 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 - Fontes de Compra vivem em `SITES_COMPRA` (interface_bot.py) e são
   despachadas por `site` no run.py: `facebook` (run.py), `icarros`
   (compra_icarros.py), `webmotors` (compra_webmotors.py), `mobiauto`
-  (compra_mobiauto.py), `napista` (compra_napista.py, só lista) e `olx`
+  (compra_mobiauto.py), `napista` (compra_napista.py, só lista),
+  `leiloes` (compra_leiloes.py, só lista — Loop e Sodré Santoro) e `olx`
   (compra_olx.py). Módulo importado dentro da função precisa entrar em
   `hiddenimports` do .spec, senão some no instalador.
 - **Webmotors** (ago/2026): na **Compra** está calibrada — busca
@@ -376,15 +377,33 @@ Ordem combinada com o Thomas, a partir das ideias das duas anotações:
    (`opcoes.grupos_facebook`), avisa quais não achou e nunca troca um
    grupo por outro parecido; a lista real de grupos sai no log na
    primeira execução com grupos de verdade. **Falta**: a Página entrar
-   nos grupos para fechar a calibração.
+   nos grupos para fechar a calibração — 25 grupos públicos da região
+   (Niterói/São Gonçalo/RJ) foram levantados, só leitura; quem escolhe
+   em quais entrar é o Thomas (o bot não entra em grupo sozinho).
 2. **Filtro por palavras na Compra** — FEITO. Cada linha da tabela de
    veículos tem "Deve conter" (o anúncio precisa falar em pelo menos uma
    das palavras) e a busca inteira tem "Ignorar com" (leilão, sinistro,
    batido…). É assim que se garimpa repasse/quitação: basta uma linha
    com o termo de busca e as palavras exigidas. `anuncio_serve()` em
    parametros.py decide, e sem texto lido o anúncio PASSA (não ler não é
-   motivo para descartar).
-3. **Portais de banco / leilão** — pesquisado, ainda não implementado.
+   motivo para descartar). Testado contra anúncios reais do Marketplace
+   (busca "assumir financiamento"): o filtro separou certo, mas a busca
+   trouxe CASAS e APARTAMENTOS — `config.URL_BUSCA` é
+   `facebook.com/marketplace/` sem categoria. Restringir à categoria de
+   veículos mexe em config/filtros (área protegida): só com o aval do
+   Thomas. Até lá, "Ignorar com: quartos, apartamento, casa" resolve.
+3. **Portais de banco / leilão** — FEITO como fonte de Compra "só lista"
+   (`src/compra_leiloes.py`, "Leilões: Loop e Sodré"). Calibrado ao vivo
+   (set/2026): Loop busca em `/estoque?marca=<MARCA>&modelo=<MODELO>`
+   (maiúsculas, como o autocomplete gera) e o card traz pregão, título
+   com ano, km, situação e lance; Sodré busca em
+   `/veiculos/lotes?term=` e `/judiciais/lotes?term=`, com o card em
+   linhas (título, comitente, data, lance, ORIGEM/CONDIÇÃO — "SEGURO",
+   "MÉDIA MONTA" = sinistrado —, CIDADE / UF, km). A aba Judiciais mistura
+   imóvel, empilhadeira e TV, então todo lote precisa ter o modelo no
+   título (`titulo_casa`). Faixa de preço vale sobre o lance; "Ignorar
+   com" olha o card inteiro (ex.: "monta"). Leilão é nacional: não há
+   filtro de UF. O pesquisado antes:
    Os bancos (Santander, Bradesco, BV, Pan, Itaú) **não vendem no
    próprio site**: encaminham para leiloeiro. Dois portais conferidos ao
    vivo, ambos com estoque PÚBLICO e sem login para navegar:
