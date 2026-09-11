@@ -27,6 +27,7 @@ import unicodedata
 
 from playwright.sync_api import sync_playwright
 
+import marcas
 from coleta import calcular_alvo
 from historico import Historico, identificar_vendedor
 from compra_olx import uf_do_cep
@@ -83,10 +84,11 @@ def montar_url_busca(produto):
     /comprar/usados/chevrolet/onix. Com uma palavra só não dá para montar
     a busca (o site devolveria carros de qualquer marca) — retorna None.
     """
-    partes = [p for p in _slug(produto).split("-") if p]
-    if len(partes) < 2:
+    # "palio" sozinho vira fiat/palio: a marca vem do modelo (marcas.py)
+    marca, modelo, _ = marcas.separar(produto)
+    if not (marca and modelo):
         return None
-    return f"{HOST}/comprar/usados/{partes[0]}/{'-'.join(partes[1:])}"
+    return f"{HOST}/comprar/usados/{marca}/{modelo}"
 
 
 def pausa_humana(min_seg=1.0, max_seg=2.5):
@@ -207,8 +209,8 @@ def executar(p):
     fila = [nome for nome in p.produtos if montar_url_busca(nome)]
     for nome in p.produtos:
         if not montar_url_busca(nome):
-            print(f"iCarros: '{nome}' precisa de MARCA e MODELO "
-                  "(ex.: 'chevrolet onix') — pulei este nome.")
+            print(f"iCarros: não achei o modelo em '{nome}' — escreva o "
+                  "modelo (ex.: 'onix') ou marca e modelo — pulei este nome.")
     if not fila:
         return
     if len(fila) > 1:
@@ -234,6 +236,10 @@ def executar(p):
             url = montar_url_busca(produto)
             print("")
             print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
+            # quem escreve só o modelo ("palio") ganha a marca na frente
+            explicacao = marcas.aviso(produto)
+            if explicacao:
+                print(f"  {explicacao}")
             print(f"iCarros — busca: {url}")
             pagina.goto(url)
             pagina.wait_for_load_state("domcontentloaded")

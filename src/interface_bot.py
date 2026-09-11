@@ -58,16 +58,19 @@ DICAS = {
             "o navegador sob automação que a OLX bloqueia. A região vem do "
             "estado do CEP (a OLX não tem raio em km) e o chat exige login "
             "no Edge. Rode poucos anúncios por vez."),
-    "icarros": ("Escreva MARCA e MODELO em Produto (ex.: 'chevrolet onix'). "
+    "icarros": ("Pode escrever só o modelo (ex.: 'onix'): o bot põe a marca. "
                 "Não exige login, mas o formulário do anúncio envia seu "
                 "nome/e-mail/telefone ao vendedor. A região vem do estado do "
                 "CEP e o preço é filtrado pelo bot."),
-    "webmotors": ("O formulário do anúncio envia seu nome/e-mail/telefone ao "
-                  "vendedor e o site pede CPF. Não filtra por região nesta "
+    "webmotors": ("Pode escrever só o modelo (ex.: 'palio'): o bot põe a "
+                  "marca, que a Webmotors exige. "
+                  "O formulário do anúncio envia seu nome/e-mail/telefone ao "
+                  "vendedor (CPF não: lá quem pede CPF é o financiamento, "
+                  "que o bot não preenche). Não filtra por região nesta "
                   "versão e pode pedir 'Pressione e segure' — o bot espera "
                   "você resolver na janela."),
-    "mobiauto": ("Escreva a MARCA e, se quiser, o modelo (ex.: 'chevrolet "
-                 "onix'). Não exige login: o bloco 'Fale com o vendedor' pede "
+    "mobiauto": ("Pode escrever só o modelo (ex.: 'onix'): o bot põe a "
+                 "marca. Não exige login: o bloco 'Fale com o vendedor' pede "
                  "nome/e-mail/celular e a mensagem — CPF não, quem pede CPF "
                  "ali é o financiamento, e o bot não mexe nele. A região vem "
                  "do estado do CEP e o preço é filtrado pelo bot."),
@@ -98,16 +101,17 @@ def campos_do_site(site):
     - OLX: região pelo estado do CEP (sem raio) + ano/km/câmbio.
     - iCarros, Webmotors e Mobiauto: sem raio; exigem seus dados de contato,
       porque o formulário do anúncio os envia ao vendedor.
-    - CPF é caso à parte: só iCarros e Webmotors pedem. O formulário do
-      vendedor na Mobiauto não pede (lá quem pede CPF é o financiamento,
-      que o bot não preenche), então o campo nem aparece.
+    - CPF é caso à parte: só o iCarros pede (em alguns anúncios). Na
+      Webmotors e na Mobiauto o formulário do vendedor NÃO pede — nos
+      dois, quem pede CPF é o formulário de financiamento, que o bot não
+      preenche —, então o campo nem aparece.
     - NaPista não envia mensagem nenhuma: não pede contato.
     """
     return {
         "raio": site == "facebook",
         "extras": site == "olx",
         "contato": site in ("icarros", "webmotors", "mobiauto"),
-        "cpf": site in ("icarros", "webmotors"),
+        "cpf": site == "icarros",
     }
 
 
@@ -222,7 +226,7 @@ def iniciar():
         if usa["contato"]:
             dados_contato = {
                 "nome": ent_nome.get().strip(),
-                # CPF só para quem pede de verdade (iCarros e Webmotors)
+                # CPF só para quem pede de verdade (hoje, só o iCarros)
                 "cpf": ent_cpf.get().strip() if usa["cpf"] else "",
                 "telefone": ent_telefone.get().strip(),
                 "email": ent_email.get().strip(),

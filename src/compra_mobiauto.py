@@ -31,6 +31,7 @@ import unicodedata
 
 from playwright.sync_api import sync_playwright
 
+import marcas
 from coleta import calcular_alvo
 from compra_olx import uf_do_cep
 from historico import Historico, identificar_vendedor
@@ -94,11 +95,12 @@ def montar_url_busca(produto, uf=""):
     Primeira palavra é a marca; o resto vira o modelo. Só a marca já
     funciona — a Mobiauto aceita `/carros-usados/rj/chevrolet`.
     """
-    partes = [p for p in _slug(produto).split("-") if p]
-    if not partes:
+    # "palio" sozinho vira fiat/palio: a marca vem do modelo (marcas.py)
+    marca, modelo, _ = marcas.separar(produto)
+    if not marca:
         return None
     regiao = uf.lower() if uf else "brasil"
-    caminho = "/".join(partes[:2]) if len(partes) > 1 else partes[0]
+    caminho = marca + (f"/{modelo}" if modelo else "")
     return f"{HOST}/comprar/carros-usados/{regiao}/{caminho}"
 
 
@@ -241,6 +243,10 @@ def executar(p):
             url = montar_url_busca(produto, uf)
             print("")
             print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
+            # quem escreve só o modelo ("palio") ganha a marca na frente
+            explicacao = marcas.aviso(produto)
+            if explicacao:
+                print(f"  {explicacao}")
             print(f"Mobiauto — busca: {url}")
             pagina.goto(url)
             pagina.wait_for_load_state("domcontentloaded")

@@ -26,6 +26,7 @@ import unicodedata
 
 from playwright.sync_api import sync_playwright
 
+import marcas
 from coleta import calcular_alvo
 from historico import Historico, identificar_vendedor
 from compra_olx import uf_do_cep
@@ -73,15 +74,17 @@ def _slug(texto):
 
 
 def montar_url_busca(produto):
-    """/carros/estoque/<marca>/<modelo> a partir do texto livre.
+    """/carros/estoque/<marca>[/<modelo>] a partir do texto livre.
 
-    Com uma palavra só busca por marca (ou modelo) — a Webmotors aceita os
-    dois casos, diferente do iCarros, que exige marca E modelo.
+    A Webmotors precisa da MARCA no caminho: com uma palavra só ela lê a
+    palavra como marca (`?marca1=palio`) e devolve anúncio de qualquer
+    carro — verificado ao vivo (set/2026). `marcas.separar` põe a marca na
+    frente quando reconhece o modelo ("palio" → fiat/palio).
     """
-    partes = [p for p in _slug(produto).split("-") if p]
-    if not partes:
+    marca, modelo, _ = marcas.separar(produto)
+    if not marca:
         return None
-    return f"{HOST}/carros/estoque/" + "/".join(partes[:2])
+    return f"{HOST}/carros/estoque/{marca}" + (f"/{modelo}" if modelo else "")
 
 
 def pausa_humana(min_seg=1.0, max_seg=2.5):
@@ -191,6 +194,10 @@ def executar(p):
             url = montar_url_busca(produto)
             print("")
             print(f"=== produto {posicao}/{len(fila)}: {produto} ===")
+            # quem escreve só o modelo ("palio") ganha a marca na frente
+            explicacao = marcas.aviso(produto)
+            if explicacao:
+                print(f"  {explicacao}")
             print(f"Webmotors — busca: {url}")
             pagina.goto(url)
             pagina.wait_for_load_state("domcontentloaded")

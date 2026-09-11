@@ -235,11 +235,35 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   Facebook injeta os cards fora de ordem e o bot abria "o primeiro do
   carregamento" em vez do primeiro visível. Sem posições legíveis, cai
   de volta na ordem do DOM.
+- **Só veículos na Compra do Facebook** (set/2026, com aval do Thomas):
+  o Marketplace NÃO tem busca por termo dentro de Veículos — conferido
+  ao vivo: `category_id=546583916084032` (Veículos) junto com `query` é
+  ignorado, `/category/vehicles?query=` e `/vehicles?query=` ignoram o
+  termo, e o link "Veículos" da lateral troca o termo por "Veículos".
+  Por isso a restrição é no card, em `coleta.eh_card_de_veiculo`: fica o
+  card no formato do formulário de veículo ("<preço> <ano> <marca>
+  <modelo>") e o card com ano no texto que não fala em imóvel nem em
+  peça (carro anunciado como item comum, ex. "REPASSE - VOYAGE 1.6
+  2015"); sai imóvel, peça/sucata e oferta de serviço sem ano. Card sem
+  texto passa. Nas buscas reais do Thomas (Mobi/Uno/Sandero) nenhum
+  carro saiu — só peça, sucata e retrovisor.
 - **CPF na Compra**: `campos_do_site` separa "contato" de "cpf". Contato
   (nome/e-mail/telefone) vai para iCarros, Webmotors e Mobiauto; o CPF só
-  para **iCarros e Webmotors**, que pedem de fato — na Mobiauto quem pede
-  CPF é o financiamento, que o bot não preenche, então o campo some da
-  tela. Facebook, OLX e NaPista não recebem nada disso.
+  para o **iCarros** (alguns anúncios pedem). Na Webmotors e na Mobiauto o
+  formulário do vendedor NÃO pede CPF — nos dois, quem pede é o
+  formulário de financiamento, que o bot não preenche —, então o campo
+  some da tela. Facebook, OLX e NaPista não recebem nada disso.
+- **Só o modelo basta** (`src/marcas.py`, set/2026): Webmotors, iCarros e
+  Mobiauto exigem a MARCA no caminho da busca; com uma palavra só, a
+  Webmotors lê "palio" como marca (`?marca1=palio`) e devolve qualquer
+  carro. `marcas.separar()` põe a marca quando reconhece o modelo (tabela
+  local dos modelos mais comuns — o catálogo de marcas/modelos do
+  Supabase não é legível sem login), troca apelidos (vw, gm, mercedes,
+  chery) pelo nome que os sites usam e, sem reconhecer nada, deixa como
+  antes (1ª palavra = marca) e avisa no log. Conferido ao vivo: "palio" →
+  Webmotors 47/47, iCarros 6/6 e Mobiauto 24/24 anúncios de Fiat Palio.
+  Slugs compostos (onix-plus, hr-v, caoa-chery…) seguem o padrão dos
+  sites, mas ainda não foram vistos na Webmotors.
 - **Várias fontes por execução** (ago/2026): a tela de Compra virou
   caixas de seleção (`sites_escolhidos()`), o JSON leva `sites` (e mantém
   `site` = a primeira, para compatibilidade) e o run.py roda uma fonte
@@ -330,7 +354,10 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   espera o usuário resolver — o bot nunca tenta contornar. Descoberta útil
   da calibração: o desafio some quando o navegador é aberto NORMALMENTE
   (Brave iniciado à parte + `connect_over_cdp`, `navigator.webdriver=False`)
-  e aparece quando o Playwright dá `launch()` no Chrome.
+  e aparece quando o Playwright dá `launch()` no Chrome. Cuidado na
+  calibração: carregar várias páginas da Webmotors em sequência rápida
+  (dezenas de URLs em segundos, ou duas abas ao mesmo tempo) dispara o
+  desafio mesmo no navegador aberto normalmente — espaçar as cargas.
 - **iCarros como fonte de Compra** (jul/2026, calibrado ao vivo): o
   anúncio tem formulário próprio (nome/e-mail/telefone/observações +
   "Enviar mensagem") e **não exige login** — por isso entrou. Detalhes
@@ -386,12 +413,10 @@ Ordem combinada com o Thomas, a partir das ideias das duas anotações:
    batido…). É assim que se garimpa repasse/quitação: basta uma linha
    com o termo de busca e as palavras exigidas. `anuncio_serve()` em
    parametros.py decide, e sem texto lido o anúncio PASSA (não ler não é
-   motivo para descartar). Testado contra anúncios reais do Marketplace
-   (busca "assumir financiamento"): o filtro separou certo, mas a busca
-   trouxe CASAS e APARTAMENTOS — `config.URL_BUSCA` é
-   `facebook.com/marketplace/` sem categoria. Restringir à categoria de
-   veículos mexe em config/filtros (área protegida): só com o aval do
-   Thomas. Até lá, "Ignorar com: quartos, apartamento, casa" resolve.
+   motivo para descartar). Testado contra anúncios reais do Marketplace:
+   o filtro separou certo, mas a busca genérica trazia CASAS e
+   APARTAMENTOS — resolvido pela peneira "só veículos" da coleta (ver
+   Estado atual).
 3. **Portais de banco / leilão** — FEITO como fonte de Compra "só lista"
    (`src/compra_leiloes.py`, "Leilões: Loop e Sodré"). Calibrado ao vivo
    (set/2026): Loop busca em `/estoque?marca=<MARCA>&modelo=<MODELO>`
@@ -423,10 +448,11 @@ Ordem combinada com o Thomas, a partir das ideias das duas anotações:
 
 - Não alterar a lógica do bot de Compra no Facebook (filtros/coleta/
   mensagem/timing em run.py, filtros.py, coleta.py, mensagem.py e
-  config.py). Duas exceções pedidas pelo Thomas, que NÃO mexem nesses
-  passos: a coleta passou a ordenar por posição na tela e o laço para
-  quando `limites.detectar_limite` reconhece o aviso de limite de
-  mensagens do Facebook. A OLX vive em `src/compra_olx.py` (fluxo paralelo) e pode
+  config.py). Três exceções pedidas pelo Thomas: a coleta ordena por
+  posição na tela, a coleta descarta o que não é veículo
+  (`coleta.eh_card_de_veiculo`) e o laço para quando
+  `limites.detectar_limite` reconhece o aviso de limite de mensagens do
+  Facebook. A OLX vive em `src/compra_olx.py` (fluxo paralelo) e pode
   evoluir livremente.
 - `python src/main.py` roda em dev; `--run-bot`, `--run-venda` e
   `--install-browser` são as flags internas.
