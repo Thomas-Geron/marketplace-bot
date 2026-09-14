@@ -35,6 +35,30 @@ que aparece. Na Venda, dados pessoais e usuário/senha só aparecem quando um
 site que os exige está marcado (`exige_login`, `exige_dados_pessoais`), e o
 bloco de login do Supabase se recolhe numa linha "Conectado: … [Sair]".
 
+Borda das caixas de texto: no Sun Valley o contorno do campo é #ebebeb e a
+caixa sumia no fundo claro. Estilo ttk não troca essa cor (o campo é uma
+imagem 20×20 fatiada), então `ui_tema._redesenhar_campos` REDESENHA no
+lugar as imagens `textbox-rest/hover/focus` (borda #8a8a8a, foco azul com
+linha de baixo grossa; 2 px a partir de 150% de escala) — Entry, Combobox e
+Spinbox usam as mesmas. A Combobox "só leitura" usava a imagem de BOTÃO
+(mexer nela mudaria os botões): ganhou o elemento `Campo.field` num layout
+próprio. `campo_texto()` (tk.Text) usa `CORES["borda_campo"]`.
+
+Passo a passo (`src/tutorial.py`, set/2026): cada tela (seletor, Compra,
+Venda) monta uma lista de `Passo(titulo, texto, alvos, opcional)` e um
+`Tutorial`. Abre sozinho só na primeira vez (na Venda, depois do login);
+"Concluir" ou "Pular" gravam em `%LOCALAPPDATA%\MarketplaceBot\
+tutorial.json` e o botão "?" do topo reabre. `alvos` é função (os widgets
+podem estar escondidos na montagem) e passo `opcional` sem alvo visível
+some da contagem. O Tk não tem camada semitransparente sobre os próprios
+widgets: o destaque são janelas sem borda — 4 faixas com `-alpha` em volta
+do furo (a união dos alvos, que continua clicável), 1 janela com
+`-transparentcolor` só com o contorno azul e o cartão do passo —,
+reposicionadas a cada 150 ms (mover, redimensionar, rolar, minimizar). Ao
+mudar um campo ou botão de lugar ou de nome, atualizar o texto do passo.
+Para conferir: capturar cada janela por PrintWindow e compor (PrintWindow
+devolve PRETO no fundo da janela com cor-chave).
+
 ## Distribuição e release
 
 - PyInstaller **onedir** (`build/marketplace-bot.spec`) + Inno Setup

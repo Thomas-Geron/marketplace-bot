@@ -26,6 +26,7 @@ import tkinter as tk
 from tkinter import ttk
 
 import contato
+import tutorial
 import ui_tema
 from sinal import dar_sinal, limpar_sinal
 from paths import get_parametros_path, get_bot_command
@@ -293,6 +294,8 @@ def iniciar():
     ttk.Label(cabeca, text="Compra", style="Titulo.TLabel").pack(anchor="w")
     ttk.Label(cabeca, text="Busca anúncios e envia mensagens aos vendedores.",
               style="Subtitulo.TLabel").pack(anchor="w")
+    bt_ajuda = tutorial.botao_ajuda(topo, lambda: guia.iniciar())
+    bt_ajuda.pack(side="right", anchor="n", pady=(px(4), 0))
 
     # ---------------------------- onde buscar ----------------------------
     sec_site = ui_tema.secao(frm, "Onde buscar")
@@ -384,9 +387,10 @@ def iniciar():
         return linha_nova
 
     adicionar_linha()
-    ui_tema.botao(sec_busca, "+ Adicionar veículo",
-                  lambda: adicionar_linha(), "neutro", 18).grid(
-        row=3, column=0, columnspan=2, sticky="w", pady=(px(4), px(16)))
+    bt_adicionar = ui_tema.botao(sec_busca, "+ Adicionar veículo",
+                                 lambda: adicionar_linha(), "neutro")
+    bt_adicionar.grid(row=3, column=0, columnspan=2, sticky="w",
+                      pady=(px(4), px(16)))
 
     def veiculos_da_tela():
         """[{produto, preco_min, preco_max}] das linhas preenchidas."""
@@ -402,8 +406,8 @@ def iniciar():
                           "palavras": linha_atual["palavras"].get().strip()})
         return itens
 
-    ttk.Label(sec_busca, text="Preço padrão").grid(row=4, column=0, sticky="w",
-                                                   padx=(0, px(12)))
+    lbl_preco_padrao = ttk.Label(sec_busca, text="Preço padrão")
+    lbl_preco_padrao.grid(row=4, column=0, sticky="w", padx=(0, px(12)))
     ent_min = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
     ent_min.grid(row=4, column=1, sticky="w", padx=(0, px(8)), pady=px(4))
     ttk.Label(sec_busca, text="até").grid(row=4, column=2, sticky="w",
@@ -417,7 +421,8 @@ def iniciar():
         "— o anúncio precisa falar em pelo menos uma.").grid(
         row=5, column=0, columnspan=5, sticky="w", pady=(px(2), px(12)))
 
-    ttk.Label(sec_busca, text="Ignorar com").grid(row=7, column=0, sticky="w")
+    lbl_ignorar = ttk.Label(sec_busca, text="Ignorar com")
+    lbl_ignorar.grid(row=7, column=0, sticky="w")
     ent_ignorar = ttk.Entry(sec_busca, width=30)
     ent_ignorar.grid(row=7, column=1, columnspan=4, sticky="we", pady=px(4))
     ui_tema.texto_suave(
@@ -426,7 +431,8 @@ def iniciar():
         "sinistro, batido). Vale para a busca inteira.").grid(
         row=8, column=0, columnspan=5, sticky="w", pady=(px(2), 0))
 
-    ttk.Label(sec_busca, text="Quantidade").grid(row=6, column=0, sticky="w")
+    lbl_quantidade = ttk.Label(sec_busca, text="Quantidade")
+    lbl_quantidade.grid(row=6, column=0, sticky="w")
     ent_qtd = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
     ent_qtd.grid(row=6, column=1, sticky="w", pady=px(4))
     ttk.Label(sec_busca, text="por veículo (vazio = todos)",
@@ -506,19 +512,21 @@ def iniciar():
     txt_msg = ui_tema.campo_texto(sec_msg, altura=4)
     txt_msg.grid(row=0, column=0, sticky="we")
     var_dry = tk.IntVar(value=1)
-    ttk.Checkbutton(sec_msg, variable=var_dry,
-                    text="Modo teste (dry-run) — preenche, mas não envia").grid(
-        row=1, column=0, sticky="w", pady=(px(12), 0))
+    chk_dry = ttk.Checkbutton(
+        sec_msg, variable=var_dry,
+        text="Modo teste (dry-run) — preenche, mas não envia")
+    chk_dry.grid(row=1, column=0, sticky="w", pady=(px(12), 0))
 
     # ------------------------------- ações ------------------------------
     acoes = ttk.Frame(frm)
     acoes.grid(row=linha, column=0, sticky="we", pady=(0, espaco)); linha += 1
     # uma só ação em destaque (Rodar); Parar é destrutiva: texto vermelho
-    ui_tema.botao(acoes, "Rodar", rodar, "ok").pack(side="left",
-                                                    padx=(0, px(8)))
-    ui_tema.botao(acoes, "Prosseguir", prosseguir, "neutro").pack(
-        side="left", padx=(0, px(8)))
-    ui_tema.botao(acoes, "Parar", parar, "perigo").pack(side="left")
+    bt_rodar = ui_tema.botao(acoes, "Rodar", rodar, "ok")
+    bt_rodar.pack(side="left", padx=(0, px(8)))
+    bt_prosseguir = ui_tema.botao(acoes, "Prosseguir", prosseguir, "neutro")
+    bt_prosseguir.pack(side="left", padx=(0, px(8)))
+    bt_parar = ui_tema.botao(acoes, "Parar", parar, "perigo")
+    bt_parar.pack(side="left")
 
     # -------------------------------- log -------------------------------
     sec_log = ui_tema.secao(frm, "Log do bot")
@@ -566,6 +574,97 @@ def iniciar():
         lbl_site_dica.configure(text=SEPARADOR.join(dicas))
 
     atualizar_campos_do_site()   # estado inicial (Facebook marcado)
+
+    # ---------------------------- passo a passo ----------------------------
+    # abre sozinho só na primeira vez; depois, pelo botão "?" do topo
+    guia = tutorial.Tutorial(root, "compra", rolavel=frm, passos=[
+        tutorial.Passo(
+            "Tela de Compra",
+            "Aqui você diz o que procurar e onde. O bot abre os sites, "
+            "encontra os anúncios e manda a sua mensagem aos vendedores. "
+            "Vamos ver cada parte, de cima para baixo."),
+        tutorial.Passo(
+            "Onde buscar",
+            "Marque um ou mais sites. O bot faz um de cada vez, na mesma "
+            "execução. A faixa azul logo abaixo explica o que cada site "
+            "marcado aceita — por exemplo, a OLX roda no Microsoft Edge e a "
+            "NaPista e os leilões só listam, sem mandar mensagem.",
+            lambda: [sec_site]),
+        tutorial.Passo(
+            "Os veículos que você procura",
+            "Uma linha por veículo. Em Veículo, escreva o modelo — só "
+            "'palio' já basta, o bot completa a marca. Em Preço de / até, a "
+            "faixa daquele carro. Em Deve conter, palavras que o anúncio "
+            "precisa ter (ex.: repasse, assumir financiamento). O ✕ apaga a "
+            "linha.",
+            lambda: [cabecalho, quadro_veiculos]),
+        tutorial.Passo(
+            "Mais de um veículo",
+            "Cria outra linha. O bot termina a busca de um veículo antes de "
+            "começar a do próximo.",
+            lambda: [bt_adicionar]),
+        tutorial.Passo(
+            "Preço padrão e quantidade",
+            "O preço padrão vale para as linhas que ficaram sem faixa "
+            "própria. Quantidade é o máximo de anúncios por veículo — deixe "
+            "vazio para usar todos os que forem encontrados.",
+            lambda: [lbl_preco_padrao, ent_min, ent_max, lbl_quantidade,
+                     ent_qtd]),
+        tutorial.Passo(
+            "Ignorar com",
+            "Palavras que fazem o bot pular o anúncio, na busca inteira. "
+            "Separe por vírgula. Ex.: leilão, sinistro, batido.",
+            lambda: [lbl_ignorar, ent_ignorar]),
+        tutorial.Passo(
+            "Região",
+            "O CEP define a região da busca (obrigatório). O raio em km só "
+            "aparece com o Facebook marcado; nos outros sites a região vem do "
+            "estado do CEP.",
+            lambda: [sec_regiao]),
+        tutorial.Passo(
+            "Seus dados de contato",
+            "Aparece quando um site marcado manda um formulário ao vendedor "
+            "(iCarros, Webmotors, Mobiauto). Nome, e-mail e telefone vão só "
+            "para o anúncio e somem quando o bot fecha — nada fica salvo.",
+            lambda: [sec_contato], opcional=True),
+        tutorial.Passo(
+            "Mensagem ao vendedor",
+            "O texto que o vendedor recebe. Escreva como se fosse você: "
+            "apresente-se e diga o que quer saber do carro.",
+            lambda: [txt_msg]),
+        tutorial.Passo(
+            "Modo teste",
+            "Com esta caixa marcada, o bot preenche tudo mas NÃO envia. "
+            "Deixe marcada na primeira vez para conferir como fica; "
+            "desmarque quando quiser mandar as mensagens de verdade.",
+            lambda: [chk_dry]),
+        tutorial.Passo(
+            "Rodar",
+            "Grava as suas escolhas e abre o navegador. O bot começa pela "
+            "primeira fonte marcada.",
+            lambda: [bt_rodar]),
+        tutorial.Passo(
+            "Prosseguir",
+            "Quando o navegador abrir, faça o login no site (se ele pedir) e "
+            "confira a busca. Aí clique em Prosseguir para o bot continuar. "
+            "Cada fonte marcada pede um Prosseguir.",
+            lambda: [bt_prosseguir]),
+        tutorial.Passo(
+            "Parar",
+            "Interrompe o bot na hora, em qualquer momento.",
+            lambda: [bt_parar]),
+        tutorial.Passo(
+            "Acompanhe pelo log",
+            "Tudo o que o bot faz aparece aqui: anúncios encontrados, "
+            "mensagens enviadas e o motivo de cada anúncio pulado.",
+            lambda: [sec_log]),
+        tutorial.Passo(
+            "Precisa rever?",
+            "Clique no ? a qualquer momento para ver este passo a passo de "
+            "novo.",
+            lambda: [bt_ajuda]),
+    ])
+    guia.iniciar_se_primeira_vez()
 
     drenar_log()
     root.mainloop()

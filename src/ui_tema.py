@@ -44,6 +44,7 @@ CORES = {
     "perigo": "#c42b1c",
     "neutro": "#5f6b7a",
     "borda": "#e3e3e3",
+    "borda_campo": "#8a8a8a",  # contorno das caixas de texto (contraste 3:1)
     "info_fundo": "#e8f1fb",
     "info_texto": "#0b3d6e",
     "log_fundo": "#1f1f23",
@@ -113,10 +114,118 @@ def _fonte_existe(janela, familia):
         return False
 
 
+def _espessura_borda(janela):
+    """1 px em 100%/125%, 2 px de 150% para cima (1 px some em tela grande)."""
+    return 2 if escala(janela) >= 1.5 else 1
+
+
+def _dentro_arredondado(x, y, x0, y0, x1, y1, raio):
+    if not (x0 <= x <= x1 and y0 <= y <= y1):
+        return False
+    cx = min(max(x, x0 + raio), x1 - raio)
+    cy = min(max(y, y0 + raio), y1 - raio)
+    return (x - cx) ** 2 + (y - cy) ** 2 <= raio ** 2
+
+
+def _cor(hexa):
+    return tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def _redesenhar_campos(janela):
+    """Contorno visível nas caixas Entry, Combobox e Spinbox.
+
+    No Sun Valley a borda lateral do campo é #ebebeb sobre fundo #fafafa —
+    a caixa quase some. Estilo ttk não troca essa cor: o campo é uma
+    imagem 20×20 fatiada (textbox-rest/hover/focus). Então as três imagens
+    são redesenhadas no lugar, com cantos arredondados suavizados e a
+    linha de baixo mais forte do Windows 11 — Entry, Combobox e Spinbox
+    usam as mesmas, então muda tudo de uma vez.
+    """
+    if sv_ttk is None:
+        return
+    g = _espessura_borda(janela)
+    fundo = _cor(CORES["fundo"])
+    desenhos = {
+        # imagem: (preenchimento, borda, linha de baixo, espessura de baixo)
+        "textbox-rest": ("#ffffff", CORES["borda_campo"], "#6b6b6b", g),
+        "textbox-hover": ("#f6f6f6", "#6b6b6b", "#575757", g),
+        "textbox-focus": ("#ffffff", CORES["destaque"], CORES["destaque"], g + 1),
+    }
+    amostras, raio = 4, 4.0
+    for nome, (preenche, borda, baixo, g_baixo) in desenhos.items():
+        try:
+            imagem = janela.tk.eval(f"set ::ttk::theme::sv_light::I({nome})")
+            lado_x = int(janela.tk.call(imagem, "cget", "-width"))
+            lado_y = int(janela.tk.call(imagem, "cget", "-height"))
+        except tk.TclError:
+            continue           # outra versão do sv-ttk: fica a borda original
+        preenche, borda, baixo = _cor(preenche), _cor(borda), _cor(baixo)
+        linhas = []
+        for y in range(lado_y):
+            linha = []
+            for x in range(lado_x):
+                soma = [0, 0, 0]
+                for j in range(amostras):
+                    for i in range(amostras):
+                        sx = x + (i + 0.5) / amostras
+                        sy = y + (j + 0.5) / amostras
+                        if not _dentro_arredondado(sx, sy, 0, 0, lado_x, lado_y,
+                                                   raio):
+                            cor = fundo
+                        elif _dentro_arredondado(sx, sy, g, g, lado_x - g,
+                                                 lado_y - g_baixo,
+                                                 max(0.0, raio - g)):
+                            cor = preenche
+                        elif sy >= lado_y - g_baixo:
+                            cor = baixo
+                        else:
+                            cor = borda
+                        for k in range(3):
+                            soma[k] += cor[k]
+                n = amostras * amostras
+                linha.append("#%02x%02x%02x" % tuple(round(s / n) for s in soma))
+            linhas.append("{" + " ".join(linha) + "}")
+        try:
+            janela.tk.call(imagem, "put", " ".join(linhas), "-to", 0, 0)
+        except tk.TclError:
+            pass
+
+    # a Combobox "só leitura" (ex.: Raio em km) é desenhada com a imagem de
+    # BOTÃO, que é a mesma dos botões — em vez de mexer nela, a caixa ganha
+    # um campo próprio com as imagens de caixa de texto
+    img = "$::ttk::theme::sv_light::I"
+    mapa = " ".join([
+        f"{img}(textbox-rest)",
+        f"{{readonly disabled}} {img}(textbox-dis)",
+        f"{{readonly focus}} {img}(textbox-focus)",
+        f"{{readonly pressed}} {img}(textbox-focus)",
+        f"{{readonly hover}} {img}(textbox-hover)",
+        f"readonly {img}(textbox-rest)",
+        f"{{focus hover !invalid}} {img}(textbox-focus)",
+        f"invalid {img}(textbox-error)",
+        f"disabled {img}(textbox-dis)",
+        f"focus {img}(textbox-focus)",
+        f"hover {img}(textbox-hover)",
+    ])
+    try:
+        janela.tk.eval(
+            "ttk::style theme settings sun-valley-light {"
+            f" ttk::style element create Campo.field image [list {mapa}]"
+            " -border 5;"
+            " ttk::style layout TCombobox {Campo.field -sticky nsew -children"
+            " {Combobox.arrow -side right -sticky ns"
+            " Combobox.padding -sticky nsew -children"
+            " {Combobox.textarea -sticky nsew}}}"
+            "}")
+    except tk.TclError:
+        pass
+
+
 def aplicar_tema(janela):
     """Liga o tema e os estilos do bot. Chamar logo depois de criar a Tk."""
     if sv_ttk is not None:
         sv_ttk.set_theme("light", janela)
+        _redesenhar_campos(janela)
     estilo = ttk.Style(janela)
 
     janela.configure(bg=CORES["fundo"])
@@ -235,8 +344,9 @@ def campo_texto(pai, altura=3):
     return tk.Text(pai, height=altura, wrap="word", font=(FONTE, 10),
                    bg=CORES["cartao"], fg=CORES["texto"],
                    insertbackground=CORES["texto"], relief="flat",
-                   borderwidth=0, highlightthickness=1,
-                   highlightbackground="#d1d1d1",
+                   borderwidth=0,
+                   highlightthickness=_espessura_borda(pai),
+                   highlightbackground=CORES["borda_campo"],
                    highlightcolor=CORES["destaque"],
                    padx=px(pai, 10), pady=px(pai, 8))
 

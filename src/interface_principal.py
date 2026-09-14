@@ -7,11 +7,15 @@ Tela inicial do MarketplaceBot: escolha entre os dois modos.
 
 O app fica num laço: cada tela devolve "voltar" (o seletor reaparece) ou
 "sair" (o app encerra). Assim dá para trocar de modo sem fechar e reabrir.
+
+Na primeira vez que o programa abre, o passo a passo (tutorial.py) mostra
+os dois modos; o botão "?" do topo mostra de novo quando quiser.
 """
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+import tutorial
 import ui_tema
 
 # ícones da fonte de sistema do Windows (Segoe MDL2 Assets / Fluent Icons)
@@ -84,27 +88,34 @@ def escolher_modo():
     root = tk.Tk()
     root.title("MarketplaceBot")
     ui_tema.aplicar_tema(root)
-    ui_tema.geometria(root, 480, 380)
+    ui_tema.geometria(root, 480, 400)
     root.resizable(False, False)
 
     frm = ttk.Frame(root, padding=ui_tema.px(root, 28))
     frm.pack(fill="both", expand=True)
 
-    ttk.Label(frm, text="MarketplaceBot", style="Titulo.TLabel").pack(anchor="w")
-    ttk.Label(frm, text="O que você quer fazer hoje?",
-              style="Subtitulo.TLabel").pack(anchor="w",
-                                             pady=(0, ui_tema.px(root, 20)))
+    cabeca = ttk.Frame(frm)
+    cabeca.pack(fill="x", pady=(0, ui_tema.px(root, 20)))
+    textos = ttk.Frame(cabeca)
+    textos.pack(side="left", fill="x", expand=True)
+    ttk.Label(textos, text="MarketplaceBot", style="Titulo.TLabel").pack(anchor="w")
+    ttk.Label(textos, text="O que você quer fazer hoje?",
+              style="Subtitulo.TLabel").pack(anchor="w")
+    bt_ajuda = tutorial.botao_ajuda(cabeca, lambda: guia.iniciar())
+    bt_ajuda.pack(side="right", anchor="n")
 
     def selecionar(modo):
         escolha["modo"] = modo
         root.destroy()
 
-    _cartao(frm, "compra", "Compra",
-            "Busca anúncios nos sites e envia mensagens aos vendedores.",
-            lambda: selecionar("compra"))
-    _cartao(frm, "venda", "Venda / Anúncio",
-            "Anuncia os veículos do seu banco nos sites escolhidos.",
-            lambda: selecionar("venda"))
+    cartao_compra = _cartao(
+        frm, "compra", "Compra",
+        "Busca anúncios nos sites e envia mensagens aos vendedores.",
+        lambda: selecionar("compra"))
+    cartao_venda = _cartao(
+        frm, "venda", "Venda / Anúncio",
+        "Anuncia os veículos do seu banco nos sites escolhidos.",
+        lambda: selecionar("venda"))
 
     try:
         from version import __version__
@@ -112,6 +123,32 @@ def escolher_modo():
                   style="Suave.TLabel").pack(anchor="e", side="bottom")
     except Exception:
         pass
+
+    guia = tutorial.Tutorial(root, "seletor", [
+        tutorial.Passo(
+            "Bem-vindo ao MarketplaceBot",
+            "Este passo a passo mostra rapidinho como o programa funciona. "
+            "Use Próximo e Anterior (ou as setas do teclado) — e dá para rever "
+            "tudo depois, a qualquer momento."),
+        tutorial.Passo(
+            "Compra",
+            "Procura carros à venda nos sites que você escolher — Facebook, "
+            "Webmotors, OLX, iCarros e outros — e envia a sua mensagem aos "
+            "vendedores. Também lista lotes de leilão. Clique aqui para "
+            "começar a buscar.",
+            lambda: [cartao_compra]),
+        tutorial.Passo(
+            "Venda / Anúncio",
+            "Anuncia os veículos cadastrados no seu sistema nos sites de "
+            "classificados, preenchendo os formulários por você.",
+            lambda: [cartao_venda]),
+        tutorial.Passo(
+            "Ajuda quando quiser",
+            "Cada tela tem este botão. Clique nele sempre que quiser ver o "
+            "passo a passo daquela tela de novo.",
+            lambda: [bt_ajuda]),
+    ])
+    guia.iniciar_se_primeira_vez()
 
     root.mainloop()
     return escolha["modo"]

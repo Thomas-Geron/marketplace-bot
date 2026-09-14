@@ -30,6 +30,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 import contato
+import tutorial
 import ui_tema
 from paths import get_parametros_venda_path, get_venda_command
 from sinal import dar_sinal, limpar_sinal
@@ -81,6 +82,8 @@ def iniciar():
         anchor="w")
     ttk.Label(cabeca, text="Anuncia os veículos do seu banco nos sites escolhidos.",
               style="Subtitulo.TLabel").pack(anchor="w")
+    bt_ajuda = tutorial.botao_ajuda(topo, lambda: guia.iniciar())
+    bt_ajuda.pack(side="right", anchor="n", pady=(px(4), 0))
 
     # ------------------------------ conta ------------------------------
     sec_conta = ui_tema.secao(frm, "Conta")
@@ -199,9 +202,10 @@ def iniciar():
     frm_acoes = ttk.Frame(frm)
     linha_acoes = linha; linha += 1
     var_dry = tk.IntVar(value=1)
-    ttk.Checkbutton(frm_acoes, variable=var_dry,
-                    text="Modo teste (dry-run) — preenche, mas não publica"
-                    ).pack(anchor="w", pady=(0, px(12)))
+    chk_dry = ttk.Checkbutton(
+        frm_acoes, variable=var_dry,
+        text="Modo teste (dry-run) — preenche, mas não publica")
+    chk_dry.pack(anchor="w", pady=(0, px(12)))
     botoes = ttk.Frame(frm_acoes)
     botoes.pack(fill="x")
 
@@ -294,6 +298,8 @@ def iniciar():
         sec_log.grid(row=linha_log, column=0, sticky="we")
         atualizar_campos_sensiveis()
         carregar_veiculos()
+        # primeira vez: o passo a passo abre depois que a lista carrega
+        guia.iniciar_se_primeira_vez()
 
     def sair_da_conta():
         for widget in barra_conta.winfo_children():
@@ -538,6 +544,70 @@ def iniciar():
         "ar no site.").pack(anchor="w", fill="x", pady=(px(8), 0))
 
     root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
+
+    # ---------------------------- passo a passo ----------------------------
+    # abre sozinho só na primeira vez (depois do login); depois, pelo "?"
+    guia = tutorial.Tutorial(root, "venda", rolavel=frm, passos=[
+        tutorial.Passo(
+            "Tela de Venda",
+            "Aqui você escolhe quais veículos do seu sistema anunciar e em "
+            "quais sites. O bot abre os sites e preenche os anúncios por "
+            "você."),
+        tutorial.Passo(
+            "Sua conta",
+            "Entre com o mesmo e-mail e senha do sistema onde os veículos "
+            "estão cadastrados. Depois do primeiro acesso a tela já abre "
+            "conectada.",
+            lambda: [sec_conta], opcional=True),
+        tutorial.Passo(
+            "Conta conectada",
+            "Mostra com qual conta você está. Sair troca de conta.",
+            lambda: [barra_conta], opcional=True),
+        tutorial.Passo(
+            "Seus veículos",
+            "Clique numa linha para marcar o veículo e clique de novo para "
+            "desmarcar. 'Já anunciado em' mostra onde ele já foi publicado — "
+            "o bot não repete o mesmo anúncio no mesmo site.",
+            lambda: [sec_veic], opcional=True),
+        tutorial.Passo(
+            "Sites",
+            "Marque onde anunciar. Os selos avisam: 'pago' quer dizer que o "
+            "bot preenche tudo e para antes do plano — pagar é decisão sua; "
+            "'abre no Microsoft Edge' roda no Edge; 'Em breve' ainda não "
+            "está disponível.",
+            lambda: [sec_sites], opcional=True),
+        tutorial.Passo(
+            "Seus dados e logins",
+            "Aparece quando um site marcado pede login ou dados pessoais. "
+            "Nada fica salvo: vai só para o bot enquanto ele roda.",
+            lambda: [sec_dados], opcional=True),
+        tutorial.Passo(
+            "Modo teste",
+            "Marcado, o bot preenche os formulários mas não publica. Use "
+            "para conferir antes de publicar de verdade.",
+            lambda: [chk_dry], opcional=True),
+        tutorial.Passo(
+            "Rodar, Prosseguir e Parar",
+            "Rodar abre os sites marcados, cada um numa aba. Faça o login em "
+            "cada aba e clique em Prosseguir para o bot começar a preencher. "
+            "Parar interrompe a qualquer momento.",
+            lambda: [botoes], opcional=True),
+        tutorial.Passo(
+            "Anunciar de novo e Excluir anúncio",
+            "Anunciar de novo libera o veículo para ser anunciado outra vez "
+            "(o anúncio antigo continua no ar). Excluir anúncio tira o "
+            "anúncio do ar no site — e pede confirmação antes.",
+            lambda: [botoes2], opcional=True),
+        tutorial.Passo(
+            "Acompanhe pelo log",
+            "Tudo o que o anunciador faz aparece aqui, campo por campo.",
+            lambda: [sec_log], opcional=True),
+        tutorial.Passo(
+            "Precisa rever?",
+            "Clique no ? a qualquer momento para ver este passo a passo de "
+            "novo.",
+            lambda: [bt_ajuda]),
+    ])
 
     # sessão salva: pula a tela de login
     if banco.tentar_sessao_salva():
