@@ -1,3 +1,4 @@
 playwright~=1.61.0
 requests~=2.34.2
 packaging~=26.2
+sv-ttk~=2.6.1

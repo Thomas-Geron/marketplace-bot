@@ -11,20 +11,24 @@ usa continua fazendo pack/grid normalmente, sem saber da rolagem.
 import tkinter as tk
 from tkinter import ttk
 
+import ui_tema
 
-def criar_area_rolavel(janela, padding=14):
+
+def criar_area_rolavel(janela, padding=20):
     """Devolve o frame onde o conteúdo deve ser montado."""
     container = ttk.Frame(janela)
     container.pack(fill="both", expand=True)
 
-    tela = tk.Canvas(container, highlightthickness=0, borderwidth=0)
+    # o Canvas é tk puro: sem o fundo do tema ele aparece cinza do sistema
+    tela = tk.Canvas(container, highlightthickness=0, borderwidth=0,
+                     bg=ui_tema.CORES["fundo"])
     barra = ttk.Scrollbar(container, orient="vertical", command=tela.yview)
     tela.configure(yscrollcommand=barra.set)
 
     tela.pack(side="left", fill="both", expand=True)
     barra.pack(side="right", fill="y")
 
-    interno = ttk.Frame(tela, padding=padding)
+    interno = ttk.Frame(tela, padding=ui_tema.px(janela, padding))
     id_janela = tela.create_window((0, 0), window=interno, anchor="nw")
 
     def ajustar(_evento=None):

@@ -88,17 +88,29 @@ def checar_atualizacao() -> None:
             root.destroy()
             return
 
-        # feedback simples de progresso durante o download
+        # progresso do download no mesmo tema das telas (é a primeira
+        # janela que o usuário vê numa atualização)
+        from tkinter import ttk
+
+        import ui_tema
+
         root.deiconify()
         root.title("MarketplaceBot")
-        root.geometry("360x80")
+        ui_tema.aplicar_tema(root)
+        ui_tema.geometria(root, 380, 110)
         root.resizable(False, False)
         texto = tk.StringVar(value="Baixando atualização...")
-        tk.Label(root, textvariable=texto, padx=16, pady=24).pack()
+        quadro = ttk.Frame(root, padding=ui_tema.px(root, 20))
+        quadro.pack(fill="both", expand=True)
+        ttk.Label(quadro, textvariable=texto).pack(anchor="w")
+        barra = ttk.Progressbar(quadro, mode="determinate", maximum=100)
+        barra.pack(fill="x", pady=(ui_tema.px(root, 12), 0))
 
         def progresso(baixado, total):
             if total:
-                texto.set(f"Baixando atualização... {baixado * 100 // total}%")
+                porcento = baixado * 100 // total
+                texto.set(f"Baixando atualização... {porcento}%")
+                barra.configure(value=porcento)
             root.update()
 
         caminho = update.download_installer(info["url"], info["size"], progresso)
@@ -136,6 +148,12 @@ def main() -> None:
 
         anunciador.main()
         return
+
+    # antes de qualquer janela: sem isto o Windows estica as janelas do Tk
+    # e a fonte sai borrada (era boa parte da cara de "programa antigo")
+    import ui_tema
+
+    ui_tema.preparar_dpi()
 
     checar_atualizacao()
     import interface_principal

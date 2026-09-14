@@ -60,9 +60,10 @@ def iniciar():
 
     root = tk.Tk()
     root.title("MarketplaceBot — Venda/Anúncio")
-    root.geometry("580x800")
-    root.minsize(520, 560)
     ui_tema.aplicar_tema(root)
+    ui_tema.geometria(root, 780, 960, minimo=(660, 600))
+    px = lambda valor: ui_tema.px(root, valor)  # noqa: E731
+    espaco = px(14)       # respiro entre um cartão e outro
 
     frm = criar_area_rolavel(root)
     frm.columnconfigure(0, weight=1)
@@ -71,18 +72,19 @@ def iniciar():
 
     # ------------------------------ topo ------------------------------
     topo = ttk.Frame(frm)
-    topo.grid(row=linha, column=0, sticky="we"); linha += 1
-    ui_tema.botao(topo, "← Voltar", lambda: encerrar("voltar"),
-                  "neutro", 10).pack(side="left")
-    ttk.Label(topo, text="  Venda / Anúncio",
-              style="Titulo.TLabel").pack(side="left")
-    ttk.Label(frm, text="Anuncia os veículos do seu banco nos sites escolhidos.",
-              style="Suave.TLabel").grid(row=linha, column=0, sticky="w",
-                                         pady=(0, 10)); linha += 1
+    topo.grid(row=linha, column=0, sticky="we", pady=(0, px(18))); linha += 1
+    ui_tema.botao(topo, "←  Voltar", lambda: encerrar("voltar"),
+                  "neutro").pack(side="left", anchor="n", pady=(px(4), 0))
+    cabeca = ttk.Frame(topo)
+    cabeca.pack(side="left", padx=(px(16), 0))
+    ttk.Label(cabeca, text="Venda / Anúncio", style="Titulo.TLabel").pack(
+        anchor="w")
+    ttk.Label(cabeca, text="Anuncia os veículos do seu banco nos sites escolhidos.",
+              style="Subtitulo.TLabel").pack(anchor="w")
 
     # ------------------------------ conta ------------------------------
     sec_conta = ui_tema.secao(frm, "Conta")
-    sec_conta.grid(row=linha, column=0, sticky="we", pady=(0, 8))
+    sec_conta.grid(row=linha, column=0, sticky="we", pady=(0, espaco))
     linha_conta = linha; linha += 1
     sec_conta.columnconfigure(1, weight=1)
     ttk.Label(sec_conta, text="E-mail").grid(row=0, column=0, sticky="w")
@@ -95,8 +97,8 @@ def iniciar():
         ui_tema.dica(sec_conta,
                      "MODO DEMONSTRAÇÃO: Supabase não configurado — qualquer "
                      "login entra e os veículos são de exemplo.",
-                     largura=470).grid(row=2, column=0, columnspan=3,
-                                       sticky="w", pady=(6, 0))
+                     ).grid(row=2, column=0, columnspan=3,
+                            sticky="we", pady=(px(12), 0))
 
     # barra compacta que substitui o bloco de login depois de entrar
     barra_conta = ttk.Frame(frm)
@@ -104,17 +106,42 @@ def iniciar():
     lbl_conta.pack(side="left")
 
     # ---------------------------- veículos -----------------------------
-    sec_veic = ui_tema.secao(frm, "Seus veículos — marque os que quer anunciar")
+    sec_veic = ui_tema.secao(frm, "Seus veículos")
     sec_veic.columnconfigure(0, weight=1)
-    lst_veiculos = tk.Listbox(sec_veic, selectmode="multiple", height=9,
-                              activestyle="none", relief="solid",
-                              borderwidth=1, highlightthickness=0,
-                              font=(ui_tema.FONTE, 9))
+    ui_tema.texto_suave(
+        sec_veic, "Clique numa linha para marcar ou desmarcar os veículos "
+                  "que quer anunciar.").grid(row=0, column=0, columnspan=2,
+                                             sticky="w", pady=(0, px(10)))
+    # tabela no lugar da lista de texto: preço, status e onde já foi
+    # anunciado ficam em colunas próprias em vez de uma linha comprida
+    lst_veiculos = ttk.Treeview(
+        sec_veic, columns=("veiculo", "preco", "status", "anunciado"),
+        show="headings", height=8, selectmode="extended")
+    for coluna, titulo, largura, estica in (
+            ("veiculo", "Veículo", 300, True), ("preco", "Preço", 100, False),
+            ("status", "Status", 100, False),
+            ("anunciado", "Já anunciado em", 150, True)):
+        lst_veiculos.heading(coluna, text=titulo, anchor="w")
+        lst_veiculos.column(coluna, width=px(largura), stretch=estica,
+                            anchor="w")
+
+    def alternar_linha(evento):
+        """Um clique marca ou desmarca a linha (sem precisar de Ctrl)."""
+        item = lst_veiculos.identify_row(evento.y)
+        if not item:
+            return None
+        if item in lst_veiculos.selection():
+            lst_veiculos.selection_remove(item)
+        else:
+            lst_veiculos.selection_add(item)
+        return "break"
+
+    lst_veiculos.bind("<Button-1>", alternar_linha)
     rolagem = ttk.Scrollbar(sec_veic, orient="vertical",
                             command=lst_veiculos.yview)
     lst_veiculos.configure(yscrollcommand=rolagem.set)
-    lst_veiculos.grid(row=0, column=0, sticky="we")
-    rolagem.grid(row=0, column=1, sticky="ns")
+    lst_veiculos.grid(row=1, column=0, sticky="we")
+    rolagem.grid(row=1, column=1, sticky="ns")
     linha_veic = linha; linha += 1
 
     # ------------------------------ sites ------------------------------
@@ -131,8 +158,8 @@ def iniciar():
     ui_tema.dica(sec_dados,
                  "Nada aqui é gravado em disco: vai só para o processo do bot "
                  "e some quando ele termina. Sites com 2FA ou captcha "
-                 "continuam exigindo você na janela.", largura=490).grid(
-        row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+                 "continuam exigindo você na janela.").grid(
+        row=0, column=0, columnspan=4, sticky="we", pady=(0, px(12)))
 
     quadro_pessoais = ttk.Frame(sec_dados)
     quadro_pessoais.grid(row=1, column=0, columnspan=4, sticky="we")
@@ -174,7 +201,7 @@ def iniciar():
     var_dry = tk.IntVar(value=1)
     ttk.Checkbutton(frm_acoes, variable=var_dry,
                     text="Modo teste (dry-run) — preenche, mas não publica"
-                    ).pack(anchor="w", pady=(0, 6))
+                    ).pack(anchor="w", pady=(0, px(12)))
     botoes = ttk.Frame(frm_acoes)
     botoes.pack(fill="x")
 
@@ -184,23 +211,28 @@ def iniciar():
     txt_log.grid(row=0, column=0, sticky="we")
     linha_log = linha; linha += 1
 
-    ttk.Label(frm, textvariable=status, style="Suave.TLabel",
-              wraplength=520).grid(row=linha, column=0, sticky="w", pady=(8, 0))
+    ui_tema.quebra_automatica(
+        ttk.Label(frm, textvariable=status, style="Suave.TLabel")).grid(
+        row=linha, column=0, sticky="w", pady=(px(10), 0))
 
     # ----------------------------- funções -----------------------------
+    def formatar_preco(valor):
+        """18950.0 -> 'R$ 18.950' (o banco manda float e aparecia '.0')."""
+        try:
+            return f"R$ {float(valor):,.0f}".replace(",", ".")
+        except (TypeError, ValueError):
+            return str(valor)
+
     def preencher_lista():
-        lst_veiculos.delete(0, "end")
+        lst_veiculos.delete(*lst_veiculos.get_children())
         registros = anunciados.carregar()
-        for v in veiculos:
-            preco = (f"R$ {v['preco']:,}".replace(",", ".")
-                     if v.get("preco") else "sem preço")
-            texto = f"{v['titulo']}  —  {preco}"
-            if v.get("status"):
-                texto += f"  ({v['status']})"
+        for indice, v in enumerate(veiculos):
+            preco = formatar_preco(v["preco"]) if v.get("preco") else "sem preço"
             ja = anunciados.sites_do_veiculo(v["id"], registros)
-            if ja:
-                texto += f"   [já em: {', '.join(ja)}]"
-            lst_veiculos.insert("end", texto)
+            # o iid é o índice em `veiculos`: escolha_atual volta por ele
+            lst_veiculos.insert("", "end", iid=str(indice), values=(
+                v["titulo"], preco, v.get("status") or "",
+                ", ".join(ja) if ja else "—"))
 
     def carregar_veiculos():
         nonlocal veiculos
@@ -233,14 +265,14 @@ def iniciar():
                 quadro.grid_remove()
 
         if "facebook_pagina" in marcados:
-            quadro_pagina_fb.pack(anchor="w", pady=(4, 0))
-            quadro_grupos_fb.pack(fill="x", pady=(4, 0))
+            quadro_pagina_fb.pack(anchor="w", pady=(px(10), 0))
+            quadro_grupos_fb.pack(fill="x", pady=(px(10), 0))
         else:
             quadro_pagina_fb.pack_forget()
             quadro_grupos_fb.pack_forget()
 
         if precisa_pessoais or com_login:
-            sec_dados.grid(row=linha_dados, column=0, sticky="we", pady=(0, 8))
+            sec_dados.grid(row=linha_dados, column=0, sticky="we", pady=(0, espaco))
         else:
             sec_dados.grid_remove()
 
@@ -253,24 +285,24 @@ def iniciar():
     def apos_login():
         sec_conta.grid_remove()
         lbl_conta.config(text=f"Conectado: {banco.email}")
-        barra_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, 8))
+        barra_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, espaco))
         ui_tema.botao(barra_conta, "Sair", sair_da_conta, "neutro", 8).pack(
             side="right")
-        sec_veic.grid(row=linha_veic, column=0, sticky="we", pady=(0, 8))
-        sec_sites.grid(row=linha_sites, column=0, sticky="we", pady=(0, 8))
-        frm_acoes.grid(row=linha_acoes, column=0, sticky="we", pady=(0, 8))
+        sec_veic.grid(row=linha_veic, column=0, sticky="we", pady=(0, espaco))
+        sec_sites.grid(row=linha_sites, column=0, sticky="we", pady=(0, espaco))
+        frm_acoes.grid(row=linha_acoes, column=0, sticky="we", pady=(0, espaco))
         sec_log.grid(row=linha_log, column=0, sticky="we")
         atualizar_campos_sensiveis()
         carregar_veiculos()
 
     def sair_da_conta():
         for widget in barra_conta.winfo_children():
-            if isinstance(widget, tk.Button):
+            if isinstance(widget, (tk.Button, ttk.Button)):
                 widget.destroy()
         barra_conta.grid_remove()
         for alvo in (sec_veic, sec_sites, sec_dados, frm_acoes, sec_log):
             alvo.grid_remove()
-        sec_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, 8))
+        sec_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, espaco))
         status.set("Sessão encerrada nesta tela.")
 
     def entrar():
@@ -290,23 +322,25 @@ def iniciar():
         vars_sites[site.id] = var
         disponivel = getattr(site, "disponivel", True)
         linha_site = ttk.Frame(sec_sites)
-        linha_site.pack(anchor="w", fill="x", pady=1)
+        linha_site.pack(anchor="w", fill="x", pady=px(3))
         ttk.Checkbutton(linha_site, text=site.nome, variable=var,
                         state="normal" if disponivel else "disabled").pack(
             side="left")
+        # selos no lugar do texto laranja solto no meio da linha
         if getattr(site, "publicacao_manual", False) and disponivel:
-            ttk.Label(linha_site, text="pago — o bot para antes do plano",
-                      style="Aviso.TLabel").pack(side="left", padx=(6, 0))
+            ui_tema.selo(linha_site, "pago · o bot para antes do plano",
+                         "Pago").pack(side="left", padx=(px(10), 0))
         if getattr(site, "navegador", "chrome") != "chrome" and disponivel:
-            ttk.Label(linha_site, text="abre no Microsoft Edge",
-                      style="Suave.TLabel").pack(side="left", padx=(6, 0))
+            ui_tema.selo(linha_site, "abre no Microsoft Edge", "Info").pack(
+                side="left", padx=(px(10), 0))
         if not disponivel:
-            ttk.Label(linha_site, text="Em breve",
-                      style="Aviso.TLabel").pack(side="left", padx=(6, 0))
+            ui_tema.selo(linha_site, "Em breve", "Breve").pack(
+                side="left", padx=(px(10), 0))
             motivo = getattr(site, "motivo_indisponivel", "")
             if motivo:
-                ttk.Label(linha_site, text=f"({motivo})",
-                          style="Suave.TLabel").pack(side="left", padx=(4, 0))
+                ttk.Label(linha_site, text=motivo,
+                          style="Suave.TLabel").pack(side="left",
+                                                     padx=(px(8), 0))
     # a Página não usa o Marketplace (o Facebook responde "Pages can't use
     # Marketplace"): o anúncio dela é um post no feed, e o bot precisa saber
     # em QUAL Página postar quando a conta administra mais de uma
@@ -321,16 +355,13 @@ def iniciar():
     # o mesmo post pode ir para grupos de que a PÁGINA participa
     quadro_grupos_fb = ttk.Frame(sec_sites)
     ttk.Label(quadro_grupos_fb, text="Grupos (um por linha):").pack(anchor="w")
-    txt_grupos_fb = tk.Text(quadro_grupos_fb, height=2, relief="solid",
-                            borderwidth=1, font=(ui_tema.FONTE, 9),
-                            wrap="none")
+    txt_grupos_fb = ui_tema.campo_texto(quadro_grupos_fb, altura=3)
     txt_grupos_fb.pack(fill="x")
-    ttk.Label(quadro_grupos_fb,
-              text="Só entram grupos em que a PÁGINA entrou. Poucos e "
-                   "relevantes: disparo em muitos grupos de uma vez é o que "
-                   "o Facebook trata como spam.",
-              style="Suave.TLabel", wraplength=420, justify="left").pack(
-        anchor="w")
+    ui_tema.texto_suave(
+        quadro_grupos_fb,
+        "Só entram grupos em que a PÁGINA entrou. Poucos e relevantes: "
+        "disparo em muitos grupos de uma vez é o que o Facebook trata como "
+        "spam.").pack(anchor="w", fill="x", pady=(px(4), 0))
 
     ttk.Label(sec_sites,
               text="Cada veículo é anunciado no máximo UMA vez por site "
@@ -352,7 +383,7 @@ def iniciar():
 
     def escolha_atual():
         """(veículos marcados na lista, sites marcados). Vazio = erro."""
-        return ([veiculos[i] for i in lst_veiculos.curselection()],
+        return ([veiculos[int(i)] for i in lst_veiculos.selection()],
                 [sid for sid, var in vars_sites.items() if var.get()])
 
     def rodar(acao="anunciar"):
@@ -488,21 +519,23 @@ def iniciar():
                 pass
         root.destroy()
 
-    ui_tema.botao(botoes, "Rodar", rodar, "ok", 11).pack(side="left", padx=(0, 6))
-    ui_tema.botao(botoes, "Prosseguir", prosseguir, "destaque", 13).pack(
-        side="left", padx=(0, 6))
-    ui_tema.botao(botoes, "Parar", parar, "perigo", 11).pack(side="left")
+    # uma só ação em destaque (Rodar); as destrutivas têm texto vermelho
+    ui_tema.botao(botoes, "Rodar", rodar, "ok").pack(side="left",
+                                                     padx=(0, px(8)))
+    ui_tema.botao(botoes, "Prosseguir", prosseguir, "neutro").pack(
+        side="left", padx=(0, px(8)))
+    ui_tema.botao(botoes, "Parar", parar, "perigo").pack(side="left")
 
     botoes2 = ttk.Frame(botoes.master)
-    botoes2.pack(fill="x", pady=(6, 0))
-    ui_tema.botao(botoes2, "Anunciar de novo", anunciar_de_novo, "neutro",
-                  17).pack(side="left", padx=(0, 6))
-    ui_tema.botao(botoes2, "Excluir anúncio", excluir_anuncio, "perigo",
-                  16).pack(side="left")
-    ttk.Label(botoes.master,
-              text="Anunciar de novo só libera a trava local; Excluir tira o "
-                   "anúncio do ar no site.",
-              style="Suave.TLabel").pack(anchor="w", pady=(4, 0))
+    botoes2.pack(fill="x", pady=(px(10), 0))
+    ui_tema.botao(botoes2, "Anunciar de novo", anunciar_de_novo,
+                  "neutro").pack(side="left", padx=(0, px(8)))
+    ui_tema.botao(botoes2, "Excluir anúncio", excluir_anuncio,
+                  "perigo").pack(side="left")
+    ui_tema.texto_suave(
+        botoes.master,
+        "Anunciar de novo só libera a trava local; Excluir tira o anúncio do "
+        "ar no site.").pack(anchor="w", fill="x", pady=(px(8), 0))
 
     root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
 

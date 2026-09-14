@@ -11,7 +11,7 @@
 # "MarketplaceBot.exe --install-browser".
 import os
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 ROOT = os.path.dirname(SPECPATH)  # SPECPATH = pasta build/
 SRC = os.path.join(ROOT, "src")
@@ -25,7 +25,9 @@ a = Analysis(
     [os.path.join(SRC, "main.py")],
     pathex=[SRC],
     binaries=pw_binaries,
-    datas=pw_datas + [(ASSETS, "assets")],
+    # o tema Sun Valley (Windows 11) é Tcl + imagens: sem os arquivos
+    # de dados, o exe abriria com a aparência antiga
+    datas=pw_datas + collect_data_files("sv_ttk") + [(ASSETS, "assets")],
     # as fontes de Compra são importadas dentro de run.main() (import tardio):
     # declaradas aqui para não dependerem da análise estática do PyInstaller
     hiddenimports=pw_hidden + ["compra_olx", "compra_icarros",

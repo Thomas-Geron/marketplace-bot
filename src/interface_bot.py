@@ -142,9 +142,10 @@ def iniciar():
 
     root = tk.Tk()
     root.title("MarketplaceBot — Compra")
-    root.geometry("470x780")
-    root.minsize(430, 520)
     ui_tema.aplicar_tema(root)
+    ui_tema.geometria(root, 700, 940, minimo=(620, 560))
+    px = lambda valor: ui_tema.px(root, valor)  # noqa: E731
+    espaco = px(14)       # respiro entre um cartão e outro
 
     frm = criar_area_rolavel(root)
     frm.columnconfigure(0, weight=1)
@@ -284,24 +285,24 @@ def iniciar():
 
     # ------------------------------ topo ------------------------------
     topo = ttk.Frame(frm)
-    topo.grid(row=linha, column=0, sticky="we"); linha += 1
-    ui_tema.botao(topo, "← Voltar", lambda: encerrar("voltar"),
-                  "neutro", 10).pack(side="left")
-    ttk.Label(topo, text="  Compra", style="Titulo.TLabel").pack(side="left")
-    ttk.Label(frm, text="Busca anúncios e envia mensagens aos vendedores.",
-              style="Suave.TLabel").grid(row=linha, column=0, sticky="w",
-                                         pady=(0, 10)); linha += 1
+    topo.grid(row=linha, column=0, sticky="we", pady=(0, px(18))); linha += 1
+    ui_tema.botao(topo, "←  Voltar", lambda: encerrar("voltar"),
+                  "neutro").pack(side="left", anchor="n", pady=(px(4), 0))
+    cabeca = ttk.Frame(topo)
+    cabeca.pack(side="left", padx=(px(16), 0))
+    ttk.Label(cabeca, text="Compra", style="Titulo.TLabel").pack(anchor="w")
+    ttk.Label(cabeca, text="Busca anúncios e envia mensagens aos vendedores.",
+              style="Subtitulo.TLabel").pack(anchor="w")
 
     # ---------------------------- onde buscar ----------------------------
     sec_site = ui_tema.secao(frm, "Onde buscar")
-    sec_site.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    sec_site.grid(row=linha, column=0, sticky="we", pady=(0, espaco)); linha += 1
     sec_site.columnconfigure(0, weight=1)
-    ttk.Label(sec_site,
-              text="Marque quantas quiser: o bot faz uma fonte de cada vez, "
-                   "na mesma execução — cada uma abre a sua janela e, quando "
-                   "precisa, pede um 'Prosseguir'.",
-              style="Suave.TLabel", wraplength=400, justify="left").grid(
-        row=0, column=0, sticky="w", pady=(0, 4))
+    ui_tema.texto_suave(
+        sec_site,
+        "Marque quantas quiser: o bot faz uma fonte de cada vez, na mesma "
+        "execução — cada uma abre a sua janela e, quando precisa, pede um "
+        "'Prosseguir'.").grid(row=0, column=0, sticky="w", pady=(0, px(10)))
     quadro_sites = ttk.Frame(sec_site)
     quadro_sites.grid(row=1, column=0, sticky="we")
     for indice, (rotulo, site_id) in enumerate(SITES_COMPRA):
@@ -309,32 +310,35 @@ def iniciar():
         vars_sites[site_id] = var
         ttk.Checkbutton(quadro_sites, text=rotulo, variable=var,
                         command=lambda: atualizar_campos_do_site()).grid(
-            row=indice // 2, column=indice % 2, sticky="w", padx=(0, 12))
+            row=indice // 2, column=indice % 2, sticky="w", padx=(0, px(28)),
+            pady=px(3))
     lbl_site_dica = ui_tema.dica(sec_site, largura=400)
-    lbl_site_dica.grid(row=2, column=0, sticky="w", pady=(6, 0))
+    lbl_site_dica.grid(row=2, column=0, sticky="we", pady=(px(12), 0))
 
     # ---------------------------- o que buscar ---------------------------
     sec_busca = ui_tema.secao(frm, "O que buscar")
-    sec_busca.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
-    sec_busca.columnconfigure(1, weight=1)
+    sec_busca.grid(row=linha, column=0, sticky="we", pady=(0, espaco)); linha += 1
+    sec_busca.columnconfigure(4, weight=1)
 
     # cada veículo tem a SUA faixa de preço: um Onix e uma picape não se
     # procuram na mesma margem, então a faixa é por linha, não da tela toda
-    ttk.Label(sec_busca,
-              text="Um veículo por linha, com a faixa de preço dele. O bot "
-                   "faz a fila em ordem, terminando um antes de começar o "
-                   "próximo.",
-              style="Suave.TLabel", wraplength=380, justify="left").grid(
-        row=0, column=0, columnspan=5, sticky="w", pady=(0, 6))
+    ui_tema.texto_suave(
+        sec_busca,
+        "Um veículo por linha, com a faixa de preço dele. O bot faz a fila "
+        "em ordem, terminando um antes de começar o próximo.").grid(
+        row=0, column=0, columnspan=5, sticky="w", pady=(0, px(10)))
 
+    # cabeçalho e linhas usam as MESMAS larguras de coluna (em pixels da
+    # escala da tela), senão os títulos desalinham dos campos
+    COLUNAS = (("Veículo", 200), ("Preço de", 92), ("até", 92),
+               ("Deve conter", 150), ("", 44))
     cabecalho = ttk.Frame(sec_busca)
-    cabecalho.grid(row=1, column=0, columnspan=5, sticky="we")
-    for coluna, (texto, largura) in enumerate(
-            (("Veículo", 20), ("Preço de", 9), ("até", 9),
-             ("Deve conter", 18), ("", 3))):
-        ttk.Label(cabecalho, text=texto, style="Suave.TLabel",
-                  width=largura).grid(row=0, column=coluna, sticky="w",
-                                      padx=(0, 4))
+    cabecalho.grid(row=1, column=0, columnspan=5, sticky="we",
+                   pady=(0, px(4)))
+    for coluna, (texto, largura) in enumerate(COLUNAS):
+        cabecalho.columnconfigure(coluna, minsize=px(largura))
+        ttk.Label(cabecalho, text=texto, style="Suave.TLabel").grid(
+            row=0, column=coluna, sticky="w")
 
     quadro_veiculos = ttk.Frame(sec_busca)
     quadro_veiculos.grid(row=2, column=0, columnspan=5, sticky="we")
@@ -351,17 +355,19 @@ def iniciar():
 
     def adicionar_linha(nome="", preco_min="", preco_max="", palavras=""):
         frame = ttk.Frame(quadro_veiculos)
-        frame.pack(fill="x", pady=1)
-        ent_veiculo = ttk.Entry(frame, width=20)
-        ent_veiculo.grid(row=0, column=0, sticky="we", padx=(0, 4))
-        ent_de = ttk.Entry(frame, width=9, validate="key",
+        frame.pack(fill="x", pady=(0, px(6)))
+        for coluna, (_, largura) in enumerate(COLUNAS):
+            frame.columnconfigure(coluna, minsize=px(largura))
+        ent_veiculo = ttk.Entry(frame, width=4)
+        ent_veiculo.grid(row=0, column=0, sticky="we", padx=(0, px(6)))
+        ent_de = ttk.Entry(frame, width=4, validate="key",
                            validatecommand=vcmd)
-        ent_de.grid(row=0, column=1, padx=(0, 4))
-        ent_ate = ttk.Entry(frame, width=9, validate="key",
+        ent_de.grid(row=0, column=1, sticky="we", padx=(0, px(6)))
+        ent_ate = ttk.Entry(frame, width=4, validate="key",
                             validatecommand=vcmd)
-        ent_ate.grid(row=0, column=2, padx=(0, 4))
-        ent_palavras = ttk.Entry(frame, width=18)
-        ent_palavras.grid(row=0, column=3, padx=(0, 4))
+        ent_ate.grid(row=0, column=2, sticky="we", padx=(0, px(6)))
+        ent_palavras = ttk.Entry(frame, width=4)
+        ent_palavras.grid(row=0, column=3, sticky="we", padx=(0, px(6)))
         for entrada, valor in ((ent_veiculo, nome), (ent_de, preco_min),
                                (ent_ate, preco_max),
                                (ent_palavras, palavras)):
@@ -370,17 +376,17 @@ def iniciar():
         linha_nova = {"frame": frame, "nome": ent_veiculo,
                       "min": ent_de, "max": ent_ate,
                       "palavras": ent_palavras}
-        tk.Button(frame, text="×", width=2, relief="flat", cursor="hand2",
-                  bg=ui_tema.CORES["cartao"], fg=ui_tema.CORES["perigo"],
-                  command=lambda: remover_linha(linha_nova)).grid(row=0,
-                                                                  column=4)
+        ttk.Button(frame, text="✕", width=2, cursor="hand2",
+                   style="Perigo.TButton",
+                   command=lambda: remover_linha(linha_nova)).grid(
+            row=0, column=4, sticky="w")
         linhas_veiculos.append(linha_nova)
         return linha_nova
 
     adicionar_linha()
     ui_tema.botao(sec_busca, "+ Adicionar veículo",
                   lambda: adicionar_linha(), "neutro", 18).grid(
-        row=3, column=0, columnspan=2, sticky="w", pady=(4, 6))
+        row=3, column=0, columnspan=2, sticky="w", pady=(px(4), px(16)))
 
     def veiculos_da_tela():
         """[{produto, preco_min, preco_max}] das linhas preenchidas."""
@@ -396,35 +402,35 @@ def iniciar():
                           "palavras": linha_atual["palavras"].get().strip()})
         return itens
 
-    ttk.Label(sec_busca, text="Preço padrão").grid(row=4, column=0, sticky="w")
+    ttk.Label(sec_busca, text="Preço padrão").grid(row=4, column=0, sticky="w",
+                                                   padx=(0, px(12)))
     ent_min = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
-    ent_min.grid(row=4, column=1, sticky="w", padx=(0, 8), pady=2)
-    ttk.Label(sec_busca, text="até").grid(row=4, column=2, sticky="e")
+    ent_min.grid(row=4, column=1, sticky="w", padx=(0, px(8)), pady=px(4))
+    ttk.Label(sec_busca, text="até").grid(row=4, column=2, sticky="w",
+                                          padx=(0, px(8)))
     ent_max = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
-    ent_max.grid(row=4, column=3, sticky="w", pady=2)
-    ttk.Label(sec_busca,
-              text="Vale para as linhas que ficarem sem faixa própria. Em "
-                   "\"Deve conter\", separe por vírgula (ex.: repasse, "
-                   "assumir financiamento) — o anúncio precisa falar em "
-                   "pelo menos uma.",
-              style="Suave.TLabel", wraplength=380, justify="left").grid(
-        row=5, column=0, columnspan=5, sticky="w", pady=(0, 6))
+    ent_max.grid(row=4, column=3, sticky="w", pady=px(4))
+    ui_tema.texto_suave(
+        sec_busca,
+        "Vale para as linhas que ficarem sem faixa própria. Em \"Deve "
+        "conter\", separe por vírgula (ex.: repasse, assumir financiamento) "
+        "— o anúncio precisa falar em pelo menos uma.").grid(
+        row=5, column=0, columnspan=5, sticky="w", pady=(px(2), px(12)))
 
     ttk.Label(sec_busca, text="Ignorar com").grid(row=7, column=0, sticky="w")
     ent_ignorar = ttk.Entry(sec_busca, width=30)
-    ent_ignorar.grid(row=7, column=1, columnspan=3, sticky="we", pady=2)
-    ttk.Label(sec_busca,
-              text="Anúncio que falar em alguma dessas palavras é pulado "
-                   "(ex.: leilão, sinistro, batido). Vale para a busca "
-                   "inteira.",
-              style="Suave.TLabel", wraplength=380, justify="left").grid(
-        row=8, column=0, columnspan=5, sticky="w", pady=(0, 4))
+    ent_ignorar.grid(row=7, column=1, columnspan=4, sticky="we", pady=px(4))
+    ui_tema.texto_suave(
+        sec_busca,
+        "Anúncio que falar em alguma dessas palavras é pulado (ex.: leilão, "
+        "sinistro, batido). Vale para a busca inteira.").grid(
+        row=8, column=0, columnspan=5, sticky="w", pady=(px(2), 0))
 
     ttk.Label(sec_busca, text="Quantidade").grid(row=6, column=0, sticky="w")
     ent_qtd = ttk.Entry(sec_busca, width=10, validate="key", validatecommand=vcmd)
-    ent_qtd.grid(row=6, column=1, sticky="w", pady=2)
+    ent_qtd.grid(row=6, column=1, sticky="w", pady=px(4))
     ttk.Label(sec_busca, text="por veículo (vazio = todos)",
-              style="Suave.TLabel").grid(row=6, column=2, columnspan=2,
+              style="Suave.TLabel").grid(row=6, column=2, columnspan=3,
                                          sticky="w")
 
     # ------------------------------ região ------------------------------
@@ -441,7 +447,7 @@ def iniciar():
     cmb_raio.set("60")
     cmb_raio.grid(row=1, column=1, sticky="w", pady=2)
     linha_regiao = linha
-    sec_regiao.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    sec_regiao.grid(row=linha, column=0, sticky="we", pady=(0, espaco)); linha += 1
 
     # -------------------------- filtros extras --------------------------
     sec_extras = ui_tema.secao(frm, "Filtros extras")
@@ -475,8 +481,8 @@ def iniciar():
     ui_tema.dica(sec_contato,
                  "O formulário do anúncio envia estes dados ao vendedor. "
                  "Nada é gravado em disco: vai só para o processo do bot e "
-                 "some quando ele termina.", largura=390).grid(
-        row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+                 "some quando ele termina.").grid(
+        row=0, column=0, columnspan=4, sticky="we", pady=(0, px(12)))
     ttk.Label(sec_contato, text="Nome").grid(row=1, column=0, sticky="w")
     ent_nome = ttk.Entry(sec_contato, width=16)
     ent_nome.grid(row=1, column=1, sticky="we", padx=(4, 8), pady=2)
@@ -495,23 +501,24 @@ def iniciar():
 
     # ------------------------------ mensagem ----------------------------
     sec_msg = ui_tema.secao(frm, "Mensagem enviada ao vendedor")
-    sec_msg.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
+    sec_msg.grid(row=linha, column=0, sticky="we", pady=(0, espaco)); linha += 1
     sec_msg.columnconfigure(0, weight=1)
-    txt_msg = tk.Text(sec_msg, height=3, relief="solid", borderwidth=1,
-                      font=(ui_tema.FONTE, 9), wrap="word")
+    txt_msg = ui_tema.campo_texto(sec_msg, altura=4)
     txt_msg.grid(row=0, column=0, sticky="we")
     var_dry = tk.IntVar(value=1)
     ttk.Checkbutton(sec_msg, variable=var_dry,
                     text="Modo teste (dry-run) — preenche, mas não envia").grid(
-        row=1, column=0, sticky="w", pady=(6, 0))
+        row=1, column=0, sticky="w", pady=(px(12), 0))
 
     # ------------------------------- ações ------------------------------
     acoes = ttk.Frame(frm)
-    acoes.grid(row=linha, column=0, sticky="we", pady=(0, 8)); linha += 1
-    ui_tema.botao(acoes, "Rodar", rodar, "ok", 11).pack(side="left", padx=(0, 6))
-    ui_tema.botao(acoes, "Prosseguir", prosseguir, "destaque", 13).pack(
-        side="left", padx=(0, 6))
-    ui_tema.botao(acoes, "Parar", parar, "perigo", 11).pack(side="left")
+    acoes.grid(row=linha, column=0, sticky="we", pady=(0, espaco)); linha += 1
+    # uma só ação em destaque (Rodar); Parar é destrutiva: texto vermelho
+    ui_tema.botao(acoes, "Rodar", rodar, "ok").pack(side="left",
+                                                    padx=(0, px(8)))
+    ui_tema.botao(acoes, "Prosseguir", prosseguir, "neutro").pack(
+        side="left", padx=(0, px(8)))
+    ui_tema.botao(acoes, "Parar", parar, "perigo").pack(side="left")
 
     # -------------------------------- log -------------------------------
     sec_log = ui_tema.secao(frm, "Log do bot")
@@ -521,8 +528,9 @@ def iniciar():
     txt_log.grid(row=0, column=0, sticky="we")
 
     status = tk.StringVar(value="Pronto. Preencha os campos e clique em Rodar.")
-    ttk.Label(frm, textvariable=status, style="Suave.TLabel",
-              wraplength=420).grid(row=linha, column=0, sticky="w", pady=(8, 0))
+    ui_tema.quebra_automatica(
+        ttk.Label(frm, textvariable=status, style="Suave.TLabel")).grid(
+        row=linha, column=0, sticky="w", pady=(px(10), 0))
 
     # ------------- mostrar/esconder conforme o site escolhido ------------
     def atualizar_campos_do_site(*_):
@@ -549,7 +557,7 @@ def iniciar():
                 (sec_extras, usa["extras"], linha_extras),
                 (sec_contato, usa["contato"], linha_contato)):
             if visivel:
-                secao_alvo.grid(row=onde, column=0, sticky="we", pady=(0, 8))
+                secao_alvo.grid(row=onde, column=0, sticky="we", pady=(0, espaco))
             else:
                 secao_alvo.grid_remove()
 

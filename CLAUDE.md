@@ -12,9 +12,23 @@ escolhido e cada tela devolve `"voltar"` (o seletor reaparece) ou `"sair"`
 NUNCA montam a GUI no import: seria impossível abrir a tela duas vezes no
 mesmo processo.
 
-Aparência: `ui_tema.py` (paleta, estilos ttk, `secao()`, `botao()`) e
-`ui_scroll.criar_area_rolavel()` (sem rolagem, o crescimento das telas
-deixava os botões de ação fora de alcance). Regra de layout: campo que o
+Aparência (set/2026): tema **Sun Valley** (`sv-ttk`, visual do Windows 11)
++ `ui_tema.py`, que concentra cor, fonte e os blocos das telas — `secao()`
+(cartão `Card.TFrame` com título), `botao()` (`Accent.TButton` para a ação
+principal, texto vermelho `Perigo.TButton` para destrutivas), `dica()`
+(faixa azul-clara que some sozinha sem texto), `selo()` ("pago", "Em
+breve", "abre no Edge"), `campo_texto()` e `caixa_log()` — e
+`ui_scroll.criar_area_rolavel()` (sem rolagem, os botões de ação ficavam
+fora de alcance). `main.py` chama `ui_tema.preparar_dpi()` ANTES da primeira
+janela: sem isso o Windows estica o Tk e a fonte sai borrada (era boa parte
+da cara de "Windows XP"); por isso tamanho de janela vai por
+`ui_tema.geometria()` e medidas em pixel por `ui_tema.px()`. Pegadinhas:
+`place()` conta a posição DENTRO do padding do frame (o título da seção usa
+deslocamento negativo); o `ttk.Label` do Sun Valley não pinta fundo (dica e
+selo são `tk.Label`); e o tema é Tcl + imagens, então o .spec leva
+`collect_data_files("sv_ttk")` — sem isso o exe abre com a cara antiga. Na
+Venda, a lista de veículos é uma `ttk.Treeview` (um clique marca/desmarca;
+o `iid` é o índice em `veiculos`). Regra de layout: campo que o
 site escolhido NÃO usa **some** (`grid_remove`), em vez de ficar cinza —
 `campos_do_site()` na Compra e o `trace` das checkboxes na Venda decidem o
 que aparece. Na Venda, dados pessoais e usuário/senha só aparecem quando um
