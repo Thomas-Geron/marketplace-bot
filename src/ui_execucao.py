@@ -13,11 +13,13 @@ O que as duas telas mostram em volta de uma execução do bot:
   o estado ("parado", "rodando", "aguardando");
 - `ResumoExecucao`: cartão que confere o que vai rodar antes do Rodar.
 """
+import math
 import re
 import time
 import tkinter as tk
 from tkinter import ttk
 
+import ui_animacao
 import ui_tema
 from ui_componentes import Cartao, Interruptor, estilo_moldura, icone
 
@@ -252,6 +254,25 @@ class BarraAcoes(tk.Frame):
                                       "aviso": C["aviso_texto"]}.get(
             nivel, C["texto_suave"]))
 
+    def _pulsar(self, cor):
+        """Bolinha do estado pulsa (clareia e volta) enquanto o bot roda —
+        dá para ver de relance que ele está vivo. `cor=None` para."""
+        ui_animacao.cancelar(self.ponto, "pulso")
+        if cor is None:
+            return
+
+        def passo(p):
+            intensidade = (1 - math.cos(2 * math.pi * p)) / 2
+            self.ponto.configure(fg=ui_animacao.cor(cor, C["cartao"],
+                                                    0.65 * intensidade))
+
+        def de_novo():
+            if self.estado != "parado":
+                ui_animacao.animar(self.ponto, "pulso", passo, 1400,
+                                   fim=de_novo, curva=lambda t: t)
+
+        de_novo()
+
     def definir_estado(self, estado):
         """'parado', 'rodando' ou 'aguardando' (bot esperando Prosseguir)."""
         if estado == self.estado:
@@ -263,6 +284,7 @@ class BarraAcoes(tk.Frame):
         texto, cor = textos[estado]
         self.lbl_estado.configure(text=texto)
         self.ponto.configure(fg=cor)
+        self._pulsar(cor if estado != "parado" else None)
         parado = estado == "parado"
         self.bt_rodar.state(["!disabled"] if parado else ["disabled"])
         self.bt_parar.state(["disabled"] if parado else ["!disabled"])

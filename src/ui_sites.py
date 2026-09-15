@@ -8,13 +8,17 @@ Cada cartão é um Canvas: caixa de marcação no canto, monograma do site
 
 Estados: normal (branco), hover (borda mais escura), marcado (roxo bem
 claro + borda roxa), inativo (cinza, sem clique) e foco (anel claro).
-A imagem de fundo é refeita quando a largura muda — a grade redistribui
-as colunas conforme o espaço (`GradeSites`).
+Hover e marcação TRANSICIONAM (ui_animacao): a cor de fundo e a borda
+andam de um estado ao outro em ~120 ms, com as cores intermediárias em
+poucos degraus para reaproveitar as imagens já geradas. A imagem de fundo
+é refeita quando a largura muda — a grade redistribui as colunas conforme
+o espaço (`GradeSites`).
 """
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+import ui_animacao
 import ui_imagens
 import ui_tema
 from ui_componentes import dica_flutuante
@@ -38,20 +42,26 @@ MONOGRAMAS = {
 _CACHE = {}
 
 
-def _fundo(widget, largura, altura, estado, foco):
+def cores_do_cartao(hover, marcado):
+    """(preenchimento, borda, espessura) para hover/marcado entre 0 e 1."""
+    preenche = ui_animacao.cor("#ffffff", C["primaria_suave"], marcado)
+    preenche = ui_animacao.cor(preenche, "#ede9fe", hover * marcado)
+    borda = ui_animacao.cor(ui_animacao.cor(C["borda"], C["borda_forte"], hover),
+                            ui_animacao.cor(C["primaria"], C["primaria_hover"], hover),
+                            marcado)
+    return preenche, borda, 1.0 + 0.5 * marcado
+
+
+def _fundo(widget, largura, altura, hover, marcado, disponivel, foco):
     raiz = widget.winfo_toplevel()
-    chave = (str(raiz), largura, altura, estado, foco)
+    chave = (str(raiz), largura, altura, hover, marcado, disponivel, foco)
     if chave in _CACHE:
         return _CACHE[chave]
     s = ui_tema.escala(raiz)
-    cores = {
-        "normal": ("#ffffff", C["borda"], 1.0),
-        "hover": ("#ffffff", C["borda_forte"], 1.0),
-        "marcado": (C["primaria_suave"], C["primaria"], 1.5),
-        "marcado_hover": ("#ede9fe", C["primaria_hover"], 1.5),
-        "inativo": (C["fundo"], C["borda"], 1.0),
-    }
-    preenche, borda, esp = cores[estado]
+    if disponivel:
+        preenche, borda, esp = cores_do_cartao(hover, marcado)
+    else:
+        preenche, borda, esp = C["fundo"], C["borda"], 1.0
     img = ui_imagens.retangulo(
         raiz, largura, altura, round(10 * s), preenche, borda=borda,
         espessura=esp * max(1.0, round(s)), espessura_anel=max(2, round(3 * s)),
@@ -81,9 +91,15 @@ class CartaoSite(tk.Canvas):
         self.site_id, self.nome = site_id, nome
         self.variavel, self.selo = variavel, selo
         self.disponivel, self.comando = disponivel, comando
-        self._hover = False
+        self._hover = ui_animacao.Transicao(self, "hover",
+                                            lambda _v: self.redesenhar())
+        # marcar costuma mostrar/esconder seções da página no mesmo instante:
+        # duração média para a troca de cor não sumir atrás desse relayout
+        self._marca = ui_animacao.Transicao(
+            self, "marca", lambda _v: self.redesenhar(),
+            valor=1.0 if variavel.get() else 0.0, duracao="media")
         self._rastreio = variavel.trace_add(
-            "write", lambda *_: self.after_idle(self.redesenhar))
+            "write", lambda *_: self.after_idle(self._marcacao_mudou))
         for evento, acao in (("<Button-1>", self.alternar),
                              ("<space>", self.alternar),
                              ("<Enter>", lambda _e: self._sobre(True)),
@@ -103,8 +119,12 @@ class CartaoSite(tk.Canvas):
             pass
 
     def _sobre(self, dentro):
-        self._hover = dentro
-        self.redesenhar()
+        if self.disponivel:
+            self._hover.ir(1.0 if dentro else 0.0)
+
+    def _marcacao_mudou(self):
+        if self.winfo_exists():
+            self._marca.ir(1.0 if self.variavel.get() else 0.0)
 
     def alternar(self, _evento=None):
         if not self.disponivel:
@@ -120,23 +140,18 @@ class CartaoSite(tk.Canvas):
             return
         largura = max(self.winfo_width(), self.px(120))
         altura = int(self["height"])
-        marcado = bool(self.variavel.get())
-        if not self.disponivel:
-            estado = "inativo"
-        elif marcado:
-            estado = "marcado_hover" if self._hover else "marcado"
-        else:
-            estado = "hover" if self._hover else "normal"
+        hover = ui_animacao.degrau(self._hover.valor)
+        marcado = ui_animacao.degrau(self._marca.valor)
         foco = self.focus_get() is self and self.disponivel
         self.delete("all")
-        self.create_image(0, 0, anchor="nw",
-                          image=_fundo(self, largura, altura, estado, foco))
+        self.create_image(0, 0, anchor="nw", image=_fundo(
+            self, largura, altura, hover, marcado, self.disponivel, foco))
 
-        # caixa de marcação no canto
+        # caixa de marcação no canto (troca na metade da transição)
         lado = self.px(16)
         s = ui_tema.escala(self)
         tipo_marca = ("inativo" if not self.disponivel
-                      else "marcado" if marcado else "vazio")
+                      else "marcado" if marcado >= 0.5 else "vazio")
         marca = _peca(self, ("marcacao", lado, tipo_marca), lambda raiz:
                       ui_imagens.marcacao(raiz, lado, tipo_marca, C["primaria"],
                                           C["borda_forte"], escala=s))

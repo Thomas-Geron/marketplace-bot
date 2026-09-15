@@ -19,6 +19,7 @@ próprio ui_tema não cobre.
 import tkinter as tk
 from tkinter import ttk
 
+import ui_animacao
 import ui_imagens
 import ui_tema
 
@@ -46,13 +47,16 @@ def estilo_moldura(janela, preenchimento, borda=None, fundo=None, raio=10):
     nome = f"Moldura{len(_ESTILOS_MOLDURA)}"
     s = ui_tema.escala(raiz)
     r = round(raio * s)
-    lado = 2 * r + round(8 * s)
+    # meio grande: o ttk repete o pedaço do meio para preencher o widget, e
+    # meio pequeno vira milhares de cópias por pintura (ver ui_tema._ret)
+    largura, altura = round(1200 * s), round(480 * s)
     imagem = ui_tema.guardar(raiz, ui_imagens.retangulo(
-        raiz, lado, lado, r, preenchimento, borda=borda,
+        raiz, largura, altura, r, preenchimento, borda=borda,
         espessura=max(1.0, round(s)), fundo=fundo))
     estilo = ttk.Style(raiz)
+    # width/height: sem eles o elemento pede o tamanho da imagem grande
     estilo.element_create(f"{nome}.fundo", "image", imagem, border=r + 2,
-                          sticky="nsew")
+                          sticky="nsew", width=2 * (r + 2), height=2 * (r + 2))
     estilo.layout(f"{nome}.TFrame", [(f"{nome}.fundo", {"sticky": "nsew"})])
     _ESTILOS_MOLDURA[chave] = f"{nome}.TFrame"
     return f"{nome}.TFrame"
@@ -133,7 +137,13 @@ class CabecalhoPagina(ttk.Frame):
 # ---------------------------------------------------- balão de ajuda
 def dica_flutuante(widget, texto):
     """Balão escuro com `texto` ao parar o mouse sobre o widget.
-    `texto` pode ser função (lida na hora de mostrar)."""
+    `texto` pode ser função (lida na hora de mostrar).
+
+    O balão é um rótulo DENTRO da janela (place na raiz), e não um
+    Toplevel: mostrar um Toplevel ativa a janela dele no Windows, e bastava
+    passar o mouse num cartão para o campo em que se digitava perder o
+    teclado.
+    """
     estado = {"janela": None, "agendado": None}
 
     def mostrar():
@@ -142,19 +152,22 @@ def dica_flutuante(widget, texto):
         if (estado["janela"] is not None or not conteudo
                 or not widget.winfo_exists()):
             return
-        balao = tk.Toplevel(widget)
-        balao.overrideredirect(True)
-        balao.attributes("-topmost", True)
-        tk.Label(balao, text=conteudo, bg="#1e293b", fg="#f8fafc",
-                 font=(ui_tema.FONTE, 9), justify="left",
-                 wraplength=_px(widget, 320), padx=_px(widget, 10),
-                 pady=_px(widget, 6)).pack()
+        raiz = widget.winfo_toplevel()
+        balao = tk.Label(raiz, text=conteudo, bg="#1e293b", fg="#f8fafc",
+                         font=(ui_tema.FONTE, 9), justify="left",
+                         wraplength=_px(widget, 320), padx=_px(widget, 10),
+                         pady=_px(widget, 6), borderwidth=0)
         balao.update_idletasks()
-        x = widget.winfo_rootx() + (widget.winfo_width()
-                                    - balao.winfo_reqwidth()) // 2
-        x = max(0, min(x, widget.winfo_screenwidth() - balao.winfo_reqwidth()))
-        y = widget.winfo_rooty() + widget.winfo_height() + _px(widget, 6)
-        balao.geometry(f"+{x}+{y}")
+        largura, altura = balao.winfo_reqwidth(), balao.winfo_reqheight()
+        x = (widget.winfo_rootx() - raiz.winfo_rootx()
+             + (widget.winfo_width() - largura) // 2)
+        x = max(_px(widget, 4), min(x, raiz.winfo_width() - largura - _px(widget, 4)))
+        y = widget.winfo_rooty() - raiz.winfo_rooty() + widget.winfo_height() \
+            + _px(widget, 6)
+        if y + altura > raiz.winfo_height():          # sem espaço: em cima
+            y = widget.winfo_rooty() - raiz.winfo_rooty() - altura - _px(widget, 6)
+        balao.place(x=x, y=max(0, y))
+        balao.lift()
         estado["janela"] = balao
 
     def esconder(_evento=None):
@@ -231,7 +244,7 @@ class _Alternavel(tk.Canvas):
         self._ativo = True
         self._largura, self._altura = largura, altura
         self._rastreio = self.variavel.trace_add(
-            "write", lambda *_: self.after_idle(self.redesenhar))
+            "write", lambda *_: self.after_idle(self._variavel_mudou))
         self.bind("<Button-1>", self.alternar)
         self.bind("<space>", self.alternar)
         self.bind("<FocusIn>", lambda _e: self.redesenhar())
@@ -244,6 +257,10 @@ class _Alternavel(tk.Canvas):
             self.variavel.trace_remove("write", self._rastreio)
         except (tk.TclError, ValueError):
             pass
+
+    def _variavel_mudou(self):
+        if self.winfo_exists():
+            self.redesenhar()
 
     def alternar(self, _evento=None):
         if not self._ativo:
@@ -305,21 +322,32 @@ class Marcador(_Alternavel):
 
 
 class Interruptor(_Alternavel):
-    """Toggle (liga/desliga) do tema."""
+    """Toggle (liga/desliga) do tema. O botão desliza até o outro lado."""
 
     def __init__(self, pai, variavel=None, comando=None, fundo=None):
+        self._posicao = None
         super().__init__(pai, _px(pai, 40), _px(pai, 22), variavel, comando,
                          fundo)
+
+    def _variavel_mudou(self):
+        if self.winfo_exists():
+            self._posicao.ir(1.0 if self.variavel.get() else 0.0)
 
     def redesenhar(self):
         if not self.winfo_exists():
             return
-        ligado = bool(self.variavel.get())
+        if self._posicao is None:       # primeiro desenho: sem animação
+            self._posicao = ui_animacao.Transicao(
+                self, "posicao", lambda _v: self.redesenhar(),
+                valor=1.0 if self.variavel.get() else 0.0, duracao="media")
+        posicao = ui_animacao.degrau(self._posicao.valor, 8)
+        ligado = posicao >= 0.5
         inativo = not self._ativo
         w, h = self._largura, self._altura
-        img = _imagem(self, ("interruptor", w, h, ligado, inativo), lambda raiz:
+        img = _imagem(self, ("interruptor", w, h, posicao, inativo), lambda raiz:
                       ui_imagens.interruptor(raiz, w, h, ligado, C["primaria"],
-                                             C["borda_campo"], inativo))
+                                             C["borda_campo"], inativo,
+                                             posicao=posicao))
         self.delete("all")
         self._desenhar_foco()
         self.create_image(self._folga, self._folga, image=img, anchor="nw")

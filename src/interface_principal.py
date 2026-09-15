@@ -24,6 +24,7 @@ import tkinter.font as tkfont
 from tkinter import ttk
 
 import tutorial
+import ui_animacao
 import ui_imagens
 import ui_tema
 from ui_componentes import Banner, CabecalhoPagina, dica_flutuante
@@ -66,6 +67,12 @@ class ItemLateral(tk.Canvas):
         self.comando, self.em_breve = comando, em_breve
         self.selecionado = self.hover = False
         self._imgs = {}
+        # hover e seleção se desfazem/aparecem em vez de trocar de uma vez
+        self._t_hover = ui_animacao.Transicao(self, "hover",
+                                              lambda _v: self.redesenhar())
+        self._t_sel = ui_animacao.Transicao(self, "selecao",
+                                            lambda _v: self.redesenhar(),
+                                            duracao="media")
         if not em_breve:
             self.bind("<Button-1>", lambda _e: comando and comando())
             self.bind("<space>", lambda _e: comando and comando())
@@ -78,7 +85,7 @@ class ItemLateral(tk.Canvas):
 
     def _sobre(self, sim):
         self.hover = sim
-        self.redesenhar()
+        self._t_hover.ir(1.0 if sim else 0.0)
 
     def _pilula(self, cor):
         if cor not in self._imgs:
@@ -88,20 +95,25 @@ class ItemLateral(tk.Canvas):
         return self._imgs[cor]
 
     def redesenhar(self):
+        if not self.winfo_exists():
+            return
         self.delete("all")
         meio = int(self["height"]) // 2
-        if self.selecionado:
-            self.create_image(0, 0, anchor="nw", image=self._pilula(C["primaria"]))
-        elif self.hover or self.focus_get() is self:
-            self.create_image(0, 0, anchor="nw",
-                              image=self._pilula(C["lateral_hover"]))
-        cor = ("#ffffff" if self.selecionado
-               else C["lateral_suave"] if self.em_breve else C["lateral_texto"])
+        foco = 1.0 if self.focus_get() is self else 0.0
+        hover = ui_animacao.degrau(max(self._t_hover.valor, foco))
+        sel = ui_animacao.degrau(self._t_sel.valor)
+        pilula = ui_animacao.cor(
+            ui_animacao.cor(C["lateral"], C["lateral_hover"], hover),
+            C["primaria"], sel)
+        if pilula != C["lateral"]:
+            self.create_image(0, 0, anchor="nw", image=self._pilula(pilula))
+        base = C["lateral_suave"] if self.em_breve else C["lateral_texto"]
+        cor = ui_animacao.cor(base, "#ffffff", sel)
         self.create_text(self.px(16), meio, anchor="w", fill=cor,
                          text=ui_tema.ICONES[self.nome_icone],
                          font=(ui_tema.FONTE_ICONES, 12))
         self.create_text(self.px(46), meio, anchor="w", fill=cor, text=self.texto,
-                         font=(ui_tema.FONTE_FORTE if self.selecionado
+                         font=(ui_tema.FONTE_FORTE if sel >= 0.5
                                else ui_tema.FONTE, 10))
         if self.em_breve:
             fonte = (ui_tema.FONTE_FORTE, 7)
@@ -186,7 +198,7 @@ class Lateral(tk.Frame):
     def selecionar(self, chave):
         for nome, item in self.itens.items():
             item.selecionado = nome == chave
-            item.redesenhar()
+            item._t_sel.ir(1.0 if item.selecionado else 0.0)
 
     def conta(self, email, verificando=False):
         px = lambda v: ui_tema.px(self, v)  # noqa: E731
@@ -221,6 +233,10 @@ class CartaoAcao(tk.Canvas):
         self.hover = False
         self._imgs = {}
         self._tamanho = None
+        # elevação no hover: o cartão sobe e a seta anda, em vez de pular
+        self._elevacao = ui_animacao.Transicao(self, "elevacao",
+                                               lambda _v: self.redesenhar(),
+                                               duracao="media")
         self._agendado = None
         for evento, acao in (("<Button-1>", lambda _e: comando()),
                              ("<Return>", lambda _e: comando()),
@@ -234,7 +250,7 @@ class CartaoAcao(tk.Canvas):
 
     def _sobre(self, sim):
         self.hover = sim
-        self.redesenhar()
+        self._elevacao.ir(1.0 if sim else 0.0)
 
     def _redimensionou(self, _evento=None):
         if self._agendado:
@@ -272,10 +288,12 @@ class CartaoAcao(tk.Canvas):
         px = self.px
         foco = self.focus_get() is self
         margem = px(14)                         # espaço da sombra
-        subir = -px(2) if self.hover else 0     # elevação no hover
+        elevacao = self._elevacao.valor
+        subir = -round(px(3) * elevacao)        # elevação no hover
         self.delete("all")
+        # a sombra maior entra na metade do caminho
         self.create_image(0, subir, anchor="nw",
-                          image=self._fundo(largura, altura, self.hover, foco))
+                          image=self._fundo(largura, altura, elevacao >= 0.5, foco))
         x0, y0 = margem + px(24), margem + px(20) + subir
         tinta = ui_imagens.misturar(self.cores[1], "#ffffff", 0.22)
         tile = px(48)
@@ -299,7 +317,7 @@ class CartaoAcao(tk.Canvas):
         self.create_image(sx, sy, image=self._peca(
             ("seta", seta, tinta), lambda: ui_imagens.retangulo(
                 self, seta, seta, seta / 2, tinta)))
-        self.create_text(sx + (px(2) if self.hover else 0), sy, fill="#ffffff",
+        self.create_text(sx + round(px(3) * elevacao), sy, fill="#ffffff",
                          text=ui_tema.ICONES["seta"],
                          font=(ui_tema.FONTE_ICONES, 11))
         # chips com o que o modo faz
@@ -331,6 +349,8 @@ class CartaoAtalho(tk.Canvas):
         self.descricao, self.comando = descricao, comando
         self.hover = False
         self._imgs = {}
+        self._t_hover = ui_animacao.Transicao(self, "hover",
+                                              lambda _v: self.redesenhar())
         if comando:
             for evento, acao in (("<Button-1>", lambda _e: comando()),
                                  ("<Return>", lambda _e: comando()),
@@ -341,7 +361,7 @@ class CartaoAtalho(tk.Canvas):
 
     def _sobre(self, sim):
         self.hover = sim
-        self.redesenhar()
+        self._t_hover.ir(1.0 if sim else 0.0)
 
     def _img(self, chave, fabrica):
         if chave not in self._imgs:
@@ -354,7 +374,8 @@ class CartaoAtalho(tk.Canvas):
             return
         px = self.px
         ativo = self.comando is not None
-        borda = C["primaria_borda"] if self.hover else C["borda"]
+        borda = ui_animacao.cor(C["borda"], C["primaria_borda"],
+                                ui_animacao.degrau(self._t_hover.valor, 4))
         preenche = C["cartao"] if ativo else "#fbfcfd"
         self.delete("all")
         self.create_image(0, 0, anchor="nw", image=self._img(
@@ -592,18 +613,38 @@ class App:
         if nome not in self.paginas:
             self.paginas[nome] = self._montar(nome)
         if self.atual is not None:
-            self.paginas[self.atual].frame.pack_forget()
+            self.paginas[self.atual].frame.place_forget()
             guia = getattr(self.paginas[self.atual], "guia", None)
             if guia is not None and guia.ativo:
                 guia.ativo = False
                 guia.encerrar_sem_marcar()
         self.atual = nome
-        self.paginas[nome].frame.pack(fill="both", expand=True)
+        self._revelar(self.paginas[nome].frame)
         self.lateral.selecionar(nome)
         titulos = {"inicio": "MarketplaceBot", "compra": "MarketplaceBot — Compra",
                    "venda": "MarketplaceBot — Venda / Anúncio"}
         self.root.title(titulos[nome])
         self.root.after_idle(self.paginas[nome].ao_mostrar)
+
+    def _revelar(self, frame):
+        """Página nova SOBE 16 px até o lugar em ~180 ms.
+
+        Só `place` (mover uma janela filha é barato e não refaz o layout).
+        Um véu semitransparente por cima foi tentado e descartado: janela
+        extra com alpha no Windows ou rouba o teclado (o `deiconify` do Tk
+        ativa a janela) ou some de vez (escondida pelo Win32, o Tk não a
+        mostra de novo).
+        """
+        deslocamento = ui_tema.px(self.root, 16)
+        if not ui_animacao.ATIVO or not self.root.winfo_viewable():
+            frame.place(x=0, y=0, relwidth=1, relheight=1)
+            return
+        frame.place(x=0, y=deslocamento, relwidth=1, relheight=1)
+
+        def passo(p):
+            frame.place_configure(y=round(deslocamento * (1 - p)))
+
+        ui_animacao.animar(self.area, "revelar", passo, "media")
 
     def fechar(self):
         for pagina in self.paginas.values():

@@ -224,15 +224,21 @@ def marcacao(janela, lado, estado, destaque, borda, fundo=None, escala=1.0):
 
 
 def interruptor(janela, largura, altura, ligado, cor_ligado, cor_desligado,
-                inativo=False):
-    """Interruptor (toggle) com trilho em pílula e botão branco."""
-    trilho = cor(cor_ligado if ligado else cor_desligado)
+                inativo=False, posicao=None):
+    """Interruptor (toggle) com trilho em pílula e botão branco.
+
+    `posicao` (0 a 1) põe o botão no meio do caminho e mistura a cor do
+    trilho — é o quadro intermediário da animação de ligar/desligar.
+    """
+    if posicao is None:
+        posicao = 1.0 if ligado else 0.0
+    trilho = cor(misturar(cor_desligado, cor_ligado, posicao))
     if inativo:
         trilho = tuple(c + (1 - c) * 0.55 for c in trilho)
     raio = altura / 2
     folga = max(2.0, altura * 0.14)
     r_botao = raio - folga
-    cx = largura - raio if ligado else raio
+    cx = raio + (largura - 2 * raio) * posicao
     cy = altura / 2
     linhas = []
     for y in range(altura):

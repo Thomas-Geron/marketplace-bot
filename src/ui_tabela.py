@@ -13,6 +13,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+import ui_animacao
 import ui_scroll
 import ui_tema
 from ui_componentes import Marcador, estilo_moldura
@@ -81,6 +82,7 @@ class _Linha:
         tk.Frame(self.frame, bg=C["hover"], height=1).place(
             relx=0, rely=1.0, relwidth=1, anchor="sw")
         self.hover = False
+        self.cor_atual = C["cartao"]
         self.var.trace_add("write", lambda *_: self.pintar())
         for w in (self.frame, self.lbl_titulo, self.lbl_preco, self.selo,
                   self.lbl_anuncio):
@@ -102,12 +104,22 @@ class _Linha:
             self._sobre(False)
 
     def pintar(self):
+        """Fundo da linha anda até a cor do estado (hover, marcada)."""
         if self.var.get():
-            cor = C["primaria_suave"]
+            alvo = C["primaria_suave"]
         elif self.hover:
-            cor = C["fundo"]
+            alvo = C["fundo"]
         else:
-            cor = C["cartao"]
+            alvo = C["cartao"]
+        origem = self.cor_atual
+
+        def passo(p):
+            self._aplicar(ui_animacao.cor(origem, alvo, p))
+
+        ui_animacao.animar(self.frame, "fundo", passo, "rapida")
+
+    def _aplicar(self, cor):
+        self.cor_atual = cor
         for w in (self.frame, self.lbl_titulo, self.lbl_preco, self.selo,
                   self.lbl_anuncio):
             w.configure(bg=cor)

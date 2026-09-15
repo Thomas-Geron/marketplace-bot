@@ -179,8 +179,17 @@ def guardar(janela, imagem):
     return imagem
 
 
-def _ret(janela, lado, raio, preenchimento, **kw):
-    return guardar(janela, ui_imagens.retangulo(janela, lado, lado, raio,
+def _ret(janela, tamanho, raio, preenchimento, **kw):
+    """Imagem de 9 fatias para elemento ttk. `tamanho` = lado ou (l, a).
+
+    O MEIO da imagem precisa ser grande: o ttk preenche o miolo do widget
+    REPETINDO o pedaço do meio, e com 8 px de meio um cartão de 700×380
+    virava milhares de cópias por pintura — a página de Compra levava ~11 s
+    na 1ª visita e ~1 s a cada volta. Com meio maior que o widget comum,
+    doze cartões pintam em ~25 ms.
+    """
+    largura, altura = tamanho if isinstance(tamanho, tuple) else (tamanho, tamanho)
+    return guardar(janela, ui_imagens.retangulo(janela, largura, altura, raio,
                                                 preenchimento, **kw))
 
 
@@ -236,7 +245,8 @@ _BOTOES = {
 
 def _estilos_botoes(janela, estilo, forte):
     s = escala(janela)
-    lado, raio, anel = round(34 * s), round(RAIO["m"] * s), max(2, round(2 * s))
+    raio, anel = round(RAIO["m"] * s), max(2, round(2 * s))
+    lado = (round(320 * s), round(72 * s))     # meio grande: ver _ret
     borda_9 = raio + anel + 2
     for nome, b in _BOTOES.items():
         def img(fill, borda=None, com_anel=False):
@@ -253,8 +263,11 @@ def _estilos_botoes(janela, estilo, forte):
         elemento = f"{nome}.botao"
         # sem `padding=`, o ttk usa o `border` também como respiro interno
         # e o botão fica com o dobro da altura
+        # width/height: sem eles o elemento pede o tamanho da IMAGEM (que é
+        # grande de propósito, ver _ret) e todo botão nascia com 320×72
         estilo.element_create(elemento, "image", normal, *estados,
-                              border=borda_9, padding=0, sticky="nsew")
+                              border=borda_9, padding=0, sticky="nsew",
+                              width=2 * borda_9, height=2 * borda_9)
         estilo.layout(f"{nome}.TButton", [(elemento, {"sticky": "nsew", "children": [
             ("Button.padding", {"sticky": "nsew", "children": [
                 ("Button.label", {"sticky": "nsew"})]})]})])
@@ -271,7 +284,8 @@ def _estilos_botoes(janela, estilo, forte):
 def _estilos_campos(janela, estilo):
     """Entry e Combobox: branco, borda visível, foco roxo com anel claro."""
     s = escala(janela)
-    lado, raio, anel = round(30 * s), round(7 * s), max(2, round(3 * s))
+    raio, anel = round(7 * s), max(2, round(3 * s))
+    lado = (round(960 * s), round(80 * s))     # meio grande: ver _ret
     esp = max(1.0, round(s))
 
     def img(borda, fill="#ffffff", espessura=esp, com_anel=None):
@@ -289,7 +303,8 @@ def _estilos_campos(janela, estilo):
         "Campo.field", "image", repouso,
         ("disabled", inativo), ("invalid", invalido),
         ("focus", foco), ("readonly pressed", foco), ("hover", hover),
-        border=borda_9, padding=0, sticky="nsew")
+        border=borda_9, padding=0, sticky="nsew",
+        width=2 * borda_9, height=2 * borda_9)
     estilo.layout("TEntry", [("Campo.field", {"sticky": "nsew", "children": [
         ("Entry.padding", {"sticky": "nsew", "children": [
             ("Entry.textarea", {"sticky": "nsew"})]})]})])
@@ -319,11 +334,13 @@ def _estilos_campos(janela, estilo):
 def _estilos_superficies(janela, estilo, forte):
     s = escala(janela)
     raio, sombra = round(RAIO["g"] * s), max(2, round(3 * s))
-    cartao = _ret(janela, round(44 * s), raio, CORES["cartao"],
+    cartao = _ret(janela, (round(1200 * s), round(720 * s)), raio, CORES["cartao"],
                   borda=CORES["borda"], espessura=max(1.0, round(s)),
                   fundo=CORES["fundo"], sombra=sombra, forca_sombra=0.05)
     estilo.element_create("Cartao.fundo", "image", cartao,
-                          border=raio + sombra + 3, padding=0, sticky="nsew")
+                          border=raio + sombra + 3, padding=0, sticky="nsew",
+                          width=2 * (raio + sombra + 3),
+                          height=2 * (raio + sombra + 3))
     estilo.layout("Cartao.TFrame", [("Cartao.fundo", {"sticky": "nsew"})])
     estilo.configure("Superficie.TFrame", background=CORES["cartao"])
     estilo.configure("Pagina.TFrame", background=CORES["fundo"])

@@ -60,7 +60,12 @@ como cor principal, azul de apoio e verde/âmbar/vermelho só para estado.
   chega), e depois só as cores do bot são reaplicadas. O TLabel também
   ganhou layout com `Label.border` (sem ele o `background` não pinta nada);
   (4) `ttk.Frame` ignora padding do estilo; (5) PrintWindow devolve preto
-  no fundo de janela com cor-chave.
+  no fundo de janela com cor-chave; (6) o ttk preenche o miolo de um
+  elemento de imagem REPETINDO o pedaço do meio — imagem de 44 px com
+  borda 18 (meio de 8 px) fazia a Compra levar ~11 s na 1ª visita e ~1 s a
+  cada volta; as imagens de cartão, campo, botão e moldura são geradas com
+  meio maior que o widget comum (`ui_tema._ret`), e a troca caiu para
+  ~150 ms.
 - `main.py` chama `preparar_dpi()` antes da primeira janela; medidas em
   pixel por `px()`. O .spec leva `collect_data_files("sv_ttk")`.
 - Layout: páginas em duas colunas (uma só abaixo de ~1040 px na Compra e
@@ -69,6 +74,26 @@ como cor principal, azul de apoio e verde/âmbar/vermelho só para estado.
   na Compra e o `trace` dos sites na Venda decidem; na Venda, dados
   pessoais e logins só aparecem com um site que os exige marcado
   (`exige_login`, `exige_dados_pessoais`).
+
+Animações (`src/ui_animacao.py`, v1.12.1): `animar(widget, chave, passo,
+duracao)` chama `passo(p)` a ~60 quadros/s com o progresso já suavizado,
+calculado pelo TEMPO (máquina lenta pula quadro, mas dura o mesmo e
+termina no estado final); `Transicao` guarda um valor 0–1 que anda até o
+alvo partindo de onde está (hover que entra e sai rápido não pisca) e
+`degrau()` arredonda o progresso para poucos valores, para as imagens
+intermediárias caírem no cache. Cada quadro espera o intervalo E a fila de
+redesenho (`after` + `after_idle`): numa cascata de eventos o Tk dispara
+timers mas só pinta no ocioso, e a animação terminava sem aparecer; e
+travada acima de 50 ms entre quadros pausa o relógio. Animam: troca de
+página (a nova SOBE 16 px com `place` — um véu semitransparente por cima
+foi descartado: janela extra com alpha ou rouba o teclado, porque o
+`deiconify` do Tk ativa a janela, ou some de vez, se escondida pelo
+Win32), seleção e hover da lateral, hover/marcação dos cartões de site, elevação
+dos cartões grandes do Início, borda do acesso rápido, fundo das linhas da
+tabela, deslize do interruptor, bolinha do estado pulsando enquanto o bot
+roda e o passo a passo (entra aos poucos e o destaque desliza de um alvo
+ao outro). Botões ttk NÃO transicionam (os estados são imagens trocadas
+pelo próprio ttk). `MBOT_SEM_ANIMACAO=1` desliga tudo.
 
 Passo a passo (`src/tutorial.py`, set/2026): cada página (Início, Compra,
 Venda) monta uma lista de `Passo(titulo, texto, alvos, opcional)` e um

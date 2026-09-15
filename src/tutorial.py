@@ -22,6 +22,7 @@ import json
 import tkinter as tk
 from tkinter import ttk
 
+import ui_animacao
 import ui_tema
 from paths import get_data_dir
 
@@ -100,6 +101,7 @@ class Tutorial:
         self._alvos = []
         self._assinatura = None
         self._vigia = None
+        self._furo_atual = None
 
     # ---------------------------------------------------------- ciclo
     def iniciar_se_primeira_vez(self, atraso=700):
@@ -115,8 +117,26 @@ class Tutorial:
         self.ativo = True
         self._montar()
         self.indice = primeiro
+        camadas = ([(faixa, ESCURIDAO) for faixa in self._faixas]
+                   + [(self._contornos, 1.0), (self._cartao, 1.0)])
+        if ui_animacao.ATIVO:
+            # invisíveis ANTES de aparecer, senão pisca o escuro cheio
+            for camada, _ in camadas:
+                camada.attributes("-alpha", 0.0)
         self._mostrar()
+        self._entrar_suave(camadas)
         self._vigiar()
+
+    def _entrar_suave(self, camadas):
+        """Escurecimento, contorno e cartão aparecem aos poucos."""
+        if not ui_animacao.ATIVO:
+            return
+
+        def passo(p):
+            for camada, alvo in camadas:
+                camada.attributes("-alpha", alvo * p)
+
+        ui_animacao.animar(self.janela, "tutorial_entrada", passo, "lenta")
 
     def proximo(self, _evento=None):
         seguinte = self._valido(self.indice + 1, 1)
@@ -149,6 +169,9 @@ class Tutorial:
         if not self.ativo:
             return
         self.ativo = False
+        for chave in ("tutorial_entrada", "tutorial_furo"):
+            ui_animacao.cancelar(self.janela, chave)
+        self._furo_atual = None
         if self._vigia is not None:
             try:
                 self.janela.after_cancel(self._vigia)
@@ -264,7 +287,7 @@ class Tutorial:
         self._bt_anterior.state(["disabled"] if primeiro else ["!disabled"])
 
         self._assinatura = None
-        self._redesenhar()
+        self._redesenhar(animado=True)
         try:
             self._cartao.focus_force()
         except Exception:
@@ -316,32 +339,54 @@ class Tutorial:
             else:
                 assinatura = (self._cliente(), tuple(self._retangulos()))
                 if assinatura != self._assinatura:
-                    self._redesenhar()
+                    # o alvo mexeu (ex.: a rolagem do passo terminou) no meio
+                    # do deslize: muda o destino, sem pular
+                    self._redesenhar(animado=ui_animacao.animando(
+                        self.janela, "tutorial_furo"))
             self._vigia = self.janela.after(INTERVALO_MS, self._vigiar)
         except tk.TclError:
             # a janela fechou com o tutorial aberto: não conta como visto
             self.ativo = False
 
-    def _redesenhar(self):
+    def _redesenhar(self, animado=False):
         if not self.ativo:
             return
         rx, ry, largura, altura = self._cliente()
         retangulos = self._retangulos()
         self._assinatura = ((rx, ry, largura, altura), tuple(retangulos))
-
+        furo = None
         if retangulos:
-            fx0 = min(r[0] for r in retangulos)
-            fy0 = min(r[1] for r in retangulos)
-            fx1 = max(r[2] for r in retangulos)
-            fy1 = max(r[3] for r in retangulos)
+            furo = (min(r[0] for r in retangulos), min(r[1] for r in retangulos),
+                    max(r[2] for r in retangulos), max(r[3] for r in retangulos))
+
+        # entre um passo e outro o destaque DESLIZA até o alvo novo; o
+        # cartão já vai para o lugar final (dá para ir lendo)
+        anterior = self._furo_atual
+        self._posicionar_cartao(furo)
+        if animado and anterior and furo and ui_animacao.ATIVO:
+            def passo(p):
+                self._aplicar_furo(tuple(round(a + (b - a) * p)
+                                         for a, b in zip(anterior, furo)))
+            ui_animacao.animar(self.janela, "tutorial_furo", passo, "media",
+                               curva=ui_animacao.suave_ida_volta)
+        else:
+            ui_animacao.cancelar(self.janela, "tutorial_furo")
+            self._aplicar_furo(furo)
+
+    def _aplicar_furo(self, furo):
+        """Faixas escuras em volta de `furo` e o contorno roxo nele."""
+        if not self.ativo:
+            return
+        self._furo_atual = furo
+        rx, ry, largura, altura = self._cliente()
+        if furo:
+            fx0, fy0, fx1, fy1 = furo
             pedacos = [(rx, ry, rx + largura, fy0),
                        (rx, fy1, rx + largura, ry + altura),
                        (rx, fy0, fx0, fy1),
                        (fx1, fy0, rx + largura, fy1)]
-            furo = (fx0, fy0, fx1, fy1)
         else:                     # passo sem alvo: escurece a janela inteira
             pedacos = [(rx, ry, rx + largura, ry + altura), None, None, None]
-            furo = None
 
         for faixa, pedaco in zip(self._faixas, pedacos):
             if pedaco and pedaco[2] > pedaco[0] and pedaco[3] > pedaco[1]:
@@ -371,7 +416,7 @@ class Tutorial:
         for faixa in self._faixas:
             faixa.lift()
         self._contornos.lift()
-        self._posicionar_cartao(furo)
+        self._cartao.lift()
 
     def _posicionar_cartao(self, furo):
         cartao = self._cartao
