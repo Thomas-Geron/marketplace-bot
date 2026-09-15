@@ -30,9 +30,14 @@ a = Analysis(
     datas=pw_datas + collect_data_files("sv_ttk") + [(ASSETS, "assets")],
     # as fontes de Compra são importadas dentro de run.main() (import tardio):
     # declaradas aqui para não dependerem da análise estática do PyInstaller
+    # as páginas da janela também são importadas na primeira visita
+    # (App._montar), e os blocos visuais vão junto com elas
     hiddenimports=pw_hidden + ["compra_olx", "compra_icarros",
                               "compra_webmotors", "compra_mobiauto",
-                              "compra_napista", "compra_leiloes"],
+                              "compra_napista", "compra_leiloes",
+                              "interface_bot", "venda.interface_venda",
+                              "ui_imagens", "ui_componentes", "ui_sites",
+                              "ui_execucao", "ui_tabela", "ui_scroll"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

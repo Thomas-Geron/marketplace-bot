@@ -1,24 +1,20 @@
 # src/ui_tema.py
 """
-Aparência comum das telas do bot — tema Sun Valley (visual do Windows 11).
+Tokens e estilos do visual do MarketplaceBot (set/2026).
 
-Antes as telas usavam o tema "clam" do Tk, botões `tk.Button` pintados à
-mão e nenhuma consciência de DPI: em monitor com escala o Windows esticava
-a janela e a fonte saía borrada — a cara de programa de Windows XP. Agora:
+Identidade: lateral escura, conteúdo claro, roxo como cor principal, azul
+de apoio, verde/âmbar/vermelho só para estado. Toda cor, fonte, espaço e
+raio sai daqui — telas e componentes (ui_componentes.py) não inventam cor.
 
-- `preparar_dpi()` roda uma vez, antes de qualquer janela (main.py);
-- `aplicar_tema()` liga o Sun Valley (sv-ttk) e os estilos do bot por cima;
-- `geometria()` dimensiona a janela pela escala do monitor;
-- `secao()`, `botao()`, `dica()`, `selo()`, `campo_texto()` e `caixa_log()`
-  são os blocos das telas — cor e fonte ficam só aqui.
-
-Duas pegadinhas do Tk que custaram uma rodada de capturas:
-- `place()` conta a posição a partir de DENTRO do padding do frame — por
-  isso o título da seção vai com deslocamento negativo;
-- o `ttk.Label` do Sun Valley não pinta fundo — faixa de dica e selo são
-  `tk.Label`, que pinta.
-
-Sem o sv-ttk instalado a tela continua abrindo, com o ttk padrão.
+Base técnica: tema Sun Valley (sv-ttk) por baixo, para barra de rolagem e
+lista suspensa; por cima, estilos próprios cujas bordas arredondadas são
+imagens geradas em código (ui_imagens.py). Três pegadinhas do Tk:
+- elemento de imagem do ttk mistura a transparência com o cinza do sistema,
+  então cada imagem ttk é "assada" sobre a cor de quem está atrás (por isso
+  existem Fantasma e FantasmaCartao, um para o fundo e outro para o cartão);
+- `ttk.Frame` ignora `padding` do estilo: o respiro vai no próprio widget;
+- `preparar_dpi()` roda antes da primeira janela, e todo tamanho em pixel
+  passa por `px()`.
 """
 import ctypes
 import tkinter as tk
@@ -30,38 +26,89 @@ try:
 except ImportError:          # sem o tema, as telas abrem com o ttk padrão
     sv_ttk = None
 
+import ui_imagens
 from paths import get_resource_dir
 
 CORES = {
-    "fundo": "#fafafa",       # o fundo do Sun Valley claro (e dos cartões)
+    # identidade
+    "primaria": "#7c3aed",
+    "primaria_hover": "#6d28d9",
+    "primaria_pressao": "#5b21b6",
+    "primaria_suave": "#f5f3ff",
+    "primaria_borda": "#ddd6fe",
+    "primaria_texto": "#5b21b6",
+    "secundaria": "#3b82f6",
+    "sucesso": "#10b981",
+    "aviso": "#f59e0b",
+    "erro": "#ef4444",
+    # texto de estado sobre branco (contraste de leitura)
+    "sucesso_texto": "#047857",
+    "aviso_texto": "#b45309",
+    "erro_texto": "#b91c1c",
+    "info_texto": "#1d4ed8",
+    # superfícies
+    "fundo": "#f8fafc",
     "cartao": "#ffffff",
-    "titulo": "#1c1c1c",
-    "texto": "#1c1c1c",
-    "suave": "#616161",
-    "destaque": "#005fb8",
-    "aviso": "#8a5300",
-    "ok": "#0f7b0f",
-    "perigo": "#c42b1c",
-    "neutro": "#5f6b7a",
-    "borda": "#e3e3e3",
-    "borda_campo": "#8a8a8a",  # contorno das caixas de texto (contraste 3:1)
-    "info_fundo": "#e8f1fb",
-    "info_texto": "#0b3d6e",
-    "log_fundo": "#1f1f23",
-    "log_texto": "#dcdcdc",
+    "borda": "#e5e7eb",
+    "borda_campo": "#cbd5e1",
+    "borda_forte": "#94a3b8",
+    "hover": "#f1f5f9",
+    "texto": "#0f172a",
+    "texto_suave": "#64748b",
+    "placeholder": "#94a3b8",
+    "inativo_fundo": "#f1f5f9",
+    "inativo_texto": "#94a3b8",
+    "info_fundo": "#eff6ff",
+    # lateral
+    "lateral": "#0f172a",
+    "lateral_hover": "#1e293b",
+    "lateral_texto": "#cbd5e1",
+    "lateral_suave": "#64748b",
 }
+# nomes antigos, ainda usados pelo tutorial e por telas antigas
+CORES.update({
+    "destaque": CORES["primaria"], "titulo": CORES["texto"],
+    "suave": CORES["texto_suave"], "ok": CORES["sucesso_texto"],
+    "perigo": CORES["erro_texto"], "neutro": CORES["texto_suave"],
+    "log_fundo": CORES["fundo"], "log_texto": CORES["texto"],
+})
 
+# tipos de selo: (fundo, texto)
 SELOS = {
-    "Pago": ("#fff4ce", "#7a4b00"),
-    "Breve": ("#ececec", "#5f5f5f"),
-    "Info": ("#e6f0fb", "#0b3d6e"),
+    "sucesso": ("#ecfdf5", "#047857"),
+    "info": ("#eff6ff", "#1d4ed8"),
+    "aviso": ("#fffbeb", "#b45309"),
+    "erro": ("#fef2f2", "#b91c1c"),
+    "neutro": ("#f1f5f9", "#475569"),
+    "primaria": ("#f5f3ff", "#6d28d9"),
 }
+SELOS.update({"Pago": SELOS["aviso"], "Breve": SELOS["neutro"],
+              "Info": SELOS["info"]})
+
+ESPACO = {"xs": 4, "sm": 8, "md": 16, "lg": 24, "xl": 32}
+RAIO = {"p": 6, "m": 8, "g": 12}
 
 FONTE = "Segoe UI"
 FONTE_FORTE = "Segoe UI Semibold"
 FONTE_MONO = "Consolas"
+FONTE_ICONES = "Segoe MDL2 Assets"
+
+# glifos da fonte de ícones do Windows (mesmo traço em todos)
+ICONES = {
+    "inicio": "", "compra": "", "venda": "",
+    "salvos": "", "historico": "", "config": "",
+    "ajuda": "", "voltar": "", "seta": "",
+    "copiar": "", "lixo": "", "busca": "",
+    "filtro": "", "lampada": "", "local": "",
+    "mensagem": "", "carro": "", "globo": "",
+    "aviso": "", "ok": "", "info": "", "fechar": "",
+    "mais": "", "conta": "", "banco": "",
+    "escudo": "", "sair": "", "lista": "",
+    "enviar": "", "loja": "", "play": "", "parar": "",
+}
 
 
+# ---------------------------------------------------------------- escala
 def preparar_dpi():
     """Texto nítido em monitor com escala (125%, 150%…).
 
@@ -90,13 +137,21 @@ def px(janela, valor):
     return int(round(valor * escala(janela)))
 
 
-def geometria(janela, largura, altura, minimo=None):
+def geometria(janela, largura, altura, minimo=None, centralizar=False):
     """Tamanho da janela pela escala do monitor, sem passar da tela."""
     f = escala(janela)
+    largura_max = janela.winfo_screenwidth() - px(janela, 40)
     alto_max = janela.winfo_screenheight() - px(janela, 80)
-    janela.geometry(f"{int(largura * f)}x{min(int(altura * f), alto_max)}")
+    w, h = min(int(largura * f), largura_max), min(int(altura * f), alto_max)
+    if centralizar:
+        x = max(0, (janela.winfo_screenwidth() - w) // 2)
+        y = max(0, (janela.winfo_screenheight() - h) // 2 - px(janela, 20))
+        janela.geometry(f"{w}x{h}+{x}+{y}")
+    else:
+        janela.geometry(f"{w}x{h}")
     if minimo:
-        janela.minsize(int(minimo[0] * f), min(int(minimo[1] * f), alto_max))
+        janela.minsize(min(int(minimo[0] * f), largura_max),
+                       min(int(minimo[1] * f), alto_max))
 
 
 def icone(janela):
@@ -114,184 +169,269 @@ def _fonte_existe(janela, familia):
         return False
 
 
-def _espessura_borda(janela):
-    """1 px em 100%/125%, 2 px de 150% para cima (1 px some em tela grande)."""
-    return 2 if escala(janela) >= 1.5 else 1
+# ---------------------------------------------------------------- imagens
+def guardar(janela, imagem):
+    """PhotoImage sem referência some da tela: a raiz guarda todas."""
+    raiz = janela.winfo_toplevel()
+    if not hasattr(raiz, "_ui_imagens"):
+        raiz._ui_imagens = []
+    raiz._ui_imagens.append(imagem)
+    return imagem
 
 
-def _dentro_arredondado(x, y, x0, y0, x1, y1, raio):
-    if not (x0 <= x <= x1 and y0 <= y <= y1):
-        return False
-    cx = min(max(x, x0 + raio), x1 - raio)
-    cy = min(max(y, y0 + raio), y1 - raio)
-    return (x - cx) ** 2 + (y - cy) ** 2 <= raio ** 2
+def _ret(janela, lado, raio, preenchimento, **kw):
+    return guardar(janela, ui_imagens.retangulo(janela, lado, lado, raio,
+                                                preenchimento, **kw))
 
 
-def _cor(hexa):
-    return tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+# (preenchimento, borda, preenchimento hover, borda hover, pressão,
+#  texto, fundo onde fica)
+_BOTOES = {
+    "Primario": dict(fill=CORES["primaria"], hover=CORES["primaria_hover"],
+                     pressao=CORES["primaria_pressao"], texto="#ffffff",
+                     inativo_fill="#c4b5fd", inativo_texto="#f5f3ff",
+                     fundo=CORES["cartao"]),
+    "Secundario": dict(fill="#ffffff", borda=CORES["borda_campo"],
+                       hover="#f8fafc", hover_borda=CORES["borda_forte"],
+                       pressao="#f1f5f9", texto=CORES["texto"],
+                       inativo_fill="#f8fafc", inativo_borda="#e2e8f0",
+                       inativo_texto=CORES["inativo_texto"],
+                       fundo=CORES["cartao"]),
+    "Destaque": dict(fill=CORES["primaria_suave"], borda="#c4b5fd",
+                     hover="#ede9fe", hover_borda=CORES["primaria"],
+                     pressao="#ddd6fe", texto=CORES["primaria_texto"],
+                     inativo_fill="#f8fafc", inativo_borda="#e2e8f0",
+                     inativo_texto=CORES["inativo_texto"],
+                     fundo=CORES["cartao"]),
+    "Perigo": dict(fill="#ffffff", borda="#fca5a5", hover="#fef2f2",
+                   hover_borda="#f87171", pressao="#fee2e2",
+                   texto=CORES["erro_texto"], inativo_fill="#ffffff",
+                   inativo_borda="#fee2e2", inativo_texto="#fca5a5",
+                   fundo=CORES["cartao"]),
+    "PerigoCheio": dict(fill="#dc2626", hover="#b91c1c", pressao="#991b1b",
+                        texto="#ffffff", inativo_fill="#fecaca",
+                        inativo_texto="#ffffff", fundo=CORES["cartao"]),
+    "Fantasma": dict(fill=CORES["fundo"], hover="#eef2f6", pressao="#e2e8f0",
+                     texto=CORES["texto_suave"], inativo_fill=CORES["fundo"],
+                     inativo_texto=CORES["inativo_texto"],
+                     fundo=CORES["fundo"]),
+    "FantasmaCartao": dict(fill=CORES["cartao"], hover="#f1f5f9",
+                           pressao="#e2e8f0", texto=CORES["texto_suave"],
+                           inativo_fill=CORES["cartao"],
+                           inativo_texto=CORES["inativo_texto"],
+                           fundo=CORES["cartao"]),
+    "IconePerigo": dict(fill=CORES["cartao"], hover="#fef2f2",
+                        pressao="#fee2e2", texto="#dc2626",
+                        inativo_fill=CORES["cartao"],
+                        inativo_texto=CORES["inativo_texto"],
+                        fundo=CORES["cartao"]),
+    "Lateral": dict(fill=CORES["lateral"], borda="#334155",
+                    hover=CORES["lateral_hover"], hover_borda="#475569",
+                    pressao="#334155", texto=CORES["lateral_texto"],
+                    inativo_fill=CORES["lateral"],
+                    inativo_texto=CORES["lateral_suave"],
+                    fundo=CORES["lateral"]),
+}
 
 
-def _redesenhar_campos(janela):
-    """Contorno visível nas caixas Entry, Combobox e Spinbox.
+def _estilos_botoes(janela, estilo, forte):
+    s = escala(janela)
+    lado, raio, anel = round(34 * s), round(RAIO["m"] * s), max(2, round(2 * s))
+    borda_9 = raio + anel + 2
+    for nome, b in _BOTOES.items():
+        def img(fill, borda=None, com_anel=False):
+            return _ret(janela, lado, raio, fill, borda=borda, fundo=b["fundo"],
+                        espessura=max(1.0, round(s)), espessura_anel=anel,
+                        anel=CORES["primaria_borda"] if com_anel else None)
+        normal = img(b["fill"], b.get("borda"))
+        estados = [
+            ("disabled", img(b["inativo_fill"], b.get("inativo_borda"))),
+            ("pressed", img(b["pressao"], b.get("hover_borda", b.get("borda")))),
+            ("active", img(b["hover"], b.get("hover_borda", b.get("borda")))),
+            ("focus", img(b["fill"], b.get("borda"), com_anel=True)),
+        ]
+        elemento = f"{nome}.botao"
+        # sem `padding=`, o ttk usa o `border` também como respiro interno
+        # e o botão fica com o dobro da altura
+        estilo.element_create(elemento, "image", normal, *estados,
+                              border=borda_9, padding=0, sticky="nsew")
+        estilo.layout(f"{nome}.TButton", [(elemento, {"sticky": "nsew", "children": [
+            ("Button.padding", {"sticky": "nsew", "children": [
+                ("Button.label", {"sticky": "nsew"})]})]})])
+        pequeno = nome in ("IconePerigo",)
+        estilo.configure(
+            f"{nome}.TButton", foreground=b["texto"], background=b["fundo"],
+            anchor="center", font=(forte if nome in ("Primario", "PerigoCheio")
+                                   else FONTE, 10),
+            padding=(px(janela, 9), px(janela, 6)) if pequeno
+            else (px(janela, 16), px(janela, 8)))
+        estilo.map(f"{nome}.TButton", foreground=[("disabled", b["inativo_texto"])])
 
-    No Sun Valley a borda lateral do campo é #ebebeb sobre fundo #fafafa —
-    a caixa quase some. Estilo ttk não troca essa cor: o campo é uma
-    imagem 20×20 fatiada (textbox-rest/hover/focus). Então as três imagens
-    são redesenhadas no lugar, com cantos arredondados suavizados e a
-    linha de baixo mais forte do Windows 11 — Entry, Combobox e Spinbox
-    usam as mesmas, então muda tudo de uma vez.
-    """
-    if sv_ttk is None:
-        return
-    g = _espessura_borda(janela)
-    fundo = _cor(CORES["fundo"])
-    desenhos = {
-        # imagem: (preenchimento, borda, linha de baixo, espessura de baixo)
-        "textbox-rest": ("#ffffff", CORES["borda_campo"], "#6b6b6b", g),
-        "textbox-hover": ("#f6f6f6", "#6b6b6b", "#575757", g),
-        "textbox-focus": ("#ffffff", CORES["destaque"], CORES["destaque"], g + 1),
+
+def _estilos_campos(janela, estilo):
+    """Entry e Combobox: branco, borda visível, foco roxo com anel claro."""
+    s = escala(janela)
+    lado, raio, anel = round(30 * s), round(7 * s), max(2, round(3 * s))
+    esp = max(1.0, round(s))
+
+    def img(borda, fill="#ffffff", espessura=esp, com_anel=None):
+        return _ret(janela, lado, raio, fill, borda=borda, fundo=CORES["cartao"],
+                    espessura=espessura, espessura_anel=anel, anel=com_anel)
+
+    repouso = img(CORES["borda_campo"])
+    hover = img(CORES["borda_forte"])
+    foco = img(CORES["primaria"], espessura=esp * 1.5,
+               com_anel=CORES["primaria_borda"])
+    inativo = img("#e2e8f0", fill=CORES["inativo_fundo"])
+    invalido = img(CORES["erro"], com_anel="#fee2e2")
+    borda_9 = raio + anel + 2
+    estilo.element_create(
+        "Campo.field", "image", repouso,
+        ("disabled", inativo), ("invalid", invalido),
+        ("focus", foco), ("readonly pressed", foco), ("hover", hover),
+        border=borda_9, padding=0, sticky="nsew")
+    estilo.layout("TEntry", [("Campo.field", {"sticky": "nsew", "children": [
+        ("Entry.padding", {"sticky": "nsew", "children": [
+            ("Entry.textarea", {"sticky": "nsew"})]})]})])
+    estilo.layout("TCombobox", [("Campo.field", {"sticky": "nsew", "children": [
+        ("Combobox.arrow", {"side": "right", "sticky": "ns"}),
+        ("Combobox.padding", {"sticky": "nsew", "children": [
+            ("Combobox.textarea", {"sticky": "nsew"})]})]})])
+    folga_x, folga_y = anel + px(janela, 10), anel + px(janela, 8)
+    for classe in ("TEntry", "TCombobox"):
+        estilo.configure(classe, padding=(folga_x, folga_y, folga_x, folga_y),
+                         foreground=CORES["texto"], fieldbackground="#ffffff",
+                         background=CORES["cartao"], font=(FONTE, 10),
+                         selectbackground=CORES["primaria_borda"],
+                         selectforeground=CORES["texto"])
+        estilo.map(classe, foreground=[("disabled", CORES["inativo_texto"])],
+                   selectbackground=[("readonly", "#ffffff")],
+                   selectforeground=[("readonly", CORES["texto"])])
+    janela.option_add("*TCombobox*Listbox.background", "#ffffff")
+    janela.option_add("*TCombobox*Listbox.foreground", CORES["texto"])
+    janela.option_add("*TCombobox*Listbox.selectBackground",
+                      CORES["primaria_suave"])
+    janela.option_add("*TCombobox*Listbox.selectForeground",
+                      CORES["primaria_texto"])
+    janela.option_add("*TCombobox*Listbox.font", (FONTE, 10))
+
+
+def _estilos_superficies(janela, estilo, forte):
+    s = escala(janela)
+    raio, sombra = round(RAIO["g"] * s), max(2, round(3 * s))
+    cartao = _ret(janela, round(44 * s), raio, CORES["cartao"],
+                  borda=CORES["borda"], espessura=max(1.0, round(s)),
+                  fundo=CORES["fundo"], sombra=sombra, forca_sombra=0.05)
+    estilo.element_create("Cartao.fundo", "image", cartao,
+                          border=raio + sombra + 3, padding=0, sticky="nsew")
+    estilo.layout("Cartao.TFrame", [("Cartao.fundo", {"sticky": "nsew"})])
+    estilo.configure("Superficie.TFrame", background=CORES["cartao"])
+    estilo.configure("Pagina.TFrame", background=CORES["fundo"])
+    estilo.configure("TFrame", background=CORES["fundo"])
+
+    # o TLabel do Sun Valley não tem elemento de fundo: o `background` do
+    # estilo não pintava nada e o rótulo mostrava o cinza da página dentro
+    # do cartão branco (faixa cinza atrás dos textos de ajuda)
+    estilo.layout("TLabel", [("Label.border", {"sticky": "nswe", "children": [
+        ("Label.padding", {"sticky": "nswe", "children": [
+            ("Label.label", {"sticky": "nswe"})]})]})])
+
+    rotulos = {
+        # na página (fundo claro)
+        "Titulo": dict(font=(forte, 20), foreground=CORES["texto"],
+                       background=CORES["fundo"]),
+        "Subtitulo": dict(font=(FONTE, 10), foreground=CORES["texto_suave"],
+                          background=CORES["fundo"]),
+        "Suave": dict(font=(FONTE, 9), foreground=CORES["texto_suave"],
+                      background=CORES["fundo"]),
+        "Grupo": dict(font=(forte, 12), foreground=CORES["texto"],
+                      background=CORES["fundo"]),
+        # dentro do cartão (branco)
+        "Secao": dict(font=(forte, 12), foreground=CORES["texto"],
+                      background=CORES["cartao"]),
+        "Rotulo": dict(font=(forte, 10), foreground=CORES["texto"],
+                       background=CORES["cartao"]),
+        "Texto": dict(font=(FONTE, 10), foreground=CORES["texto"],
+                      background=CORES["cartao"]),
+        "Ajuda": dict(font=(FONTE, 9), foreground=CORES["texto_suave"],
+                      background=CORES["cartao"]),
+        "Numero": dict(font=(forte, 12), foreground=CORES["primaria"],
+                       background=CORES["cartao"]),
+        "Aviso": dict(foreground=CORES["aviso_texto"], background=CORES["cartao"]),
+        "Ok": dict(foreground=CORES["sucesso_texto"], background=CORES["cartao"]),
     }
-    amostras, raio = 4, 4.0
-    for nome, (preenche, borda, baixo, g_baixo) in desenhos.items():
-        try:
-            imagem = janela.tk.eval(f"set ::ttk::theme::sv_light::I({nome})")
-            lado_x = int(janela.tk.call(imagem, "cget", "-width"))
-            lado_y = int(janela.tk.call(imagem, "cget", "-height"))
-        except tk.TclError:
-            continue           # outra versão do sv-ttk: fica a borda original
-        preenche, borda, baixo = _cor(preenche), _cor(borda), _cor(baixo)
-        linhas = []
-        for y in range(lado_y):
-            linha = []
-            for x in range(lado_x):
-                soma = [0, 0, 0]
-                for j in range(amostras):
-                    for i in range(amostras):
-                        sx = x + (i + 0.5) / amostras
-                        sy = y + (j + 0.5) / amostras
-                        if not _dentro_arredondado(sx, sy, 0, 0, lado_x, lado_y,
-                                                   raio):
-                            cor = fundo
-                        elif _dentro_arredondado(sx, sy, g, g, lado_x - g,
-                                                 lado_y - g_baixo,
-                                                 max(0.0, raio - g)):
-                            cor = preenche
-                        elif sy >= lado_y - g_baixo:
-                            cor = baixo
-                        else:
-                            cor = borda
-                        for k in range(3):
-                            soma[k] += cor[k]
-                n = amostras * amostras
-                linha.append("#%02x%02x%02x" % tuple(round(s / n) for s in soma))
-            linhas.append("{" + " ".join(linha) + "}")
-        try:
-            janela.tk.call(imagem, "put", " ".join(linhas), "-to", 0, 0)
-        except tk.TclError:
-            pass
-
-    # a Combobox "só leitura" (ex.: Raio em km) é desenhada com a imagem de
-    # BOTÃO, que é a mesma dos botões — em vez de mexer nela, a caixa ganha
-    # um campo próprio com as imagens de caixa de texto
-    img = "$::ttk::theme::sv_light::I"
-    mapa = " ".join([
-        f"{img}(textbox-rest)",
-        f"{{readonly disabled}} {img}(textbox-dis)",
-        f"{{readonly focus}} {img}(textbox-focus)",
-        f"{{readonly pressed}} {img}(textbox-focus)",
-        f"{{readonly hover}} {img}(textbox-hover)",
-        f"readonly {img}(textbox-rest)",
-        f"{{focus hover !invalid}} {img}(textbox-focus)",
-        f"invalid {img}(textbox-error)",
-        f"disabled {img}(textbox-dis)",
-        f"focus {img}(textbox-focus)",
-        f"hover {img}(textbox-hover)",
-    ])
-    try:
-        janela.tk.eval(
-            "ttk::style theme settings sun-valley-light {"
-            f" ttk::style element create Campo.field image [list {mapa}]"
-            " -border 5;"
-            " ttk::style layout TCombobox {Campo.field -sticky nsew -children"
-            " {Combobox.arrow -side right -sticky ns"
-            " Combobox.padding -sticky nsew -children"
-            " {Combobox.textarea -sticky nsew}}}"
-            "}")
-    except tk.TclError:
-        pass
+    for nome, opcoes in rotulos.items():
+        estilo.configure(f"{nome}.TLabel", **opcoes)
 
 
 def aplicar_tema(janela):
     """Liga o tema e os estilos do bot. Chamar logo depois de criar a Tk."""
-    if sv_ttk is not None:
-        sv_ttk.set_theme("light", janela)
-        _redesenhar_campos(janela)
     estilo = ttk.Style(janela)
 
+    def cores_do_bot():
+        estilo.configure(".", font=(FONTE, 10), background=CORES["fundo"],
+                         foreground=CORES["texto"])
+
+    if sv_ttk is not None:
+        sv_ttk.set_theme("light", janela)
+        # O sv-ttk liga `configure_colors` ao <<ThemeChanged>>, que o Tk
+        # manda a CADA estilo/elemento criado (as páginas criam os delas ao
+        # abrir). Cada vez ele volta o estilo "." para #fafafa e chama
+        # tk_setPalette, cujo RecolorTree percorre TODOS os widgets e pinta
+        # #fafafa/#1c1c1c em toda opção de cor ainda vazia — todo ttk.Label
+        # já montado perdia o estilo (faixa cinza e texto preto nos textos
+        # de ajuda). Agora a paleta do sv-ttk roda UMA vez, aqui, chamada
+        # direto, antes de existir qualquer rótulo; nos eventos seguintes só
+        # as cores do bot são reaplicadas. (Esperar o evento com update() não
+        # serve: a janela ainda não existe na tela e o evento não chega.)
+        nome = janela.register(cores_do_bot)
+        janela.tk.eval(
+            'if {[info procs _sv_configure_colors] eq ""} {'
+            ' rename configure_colors _sv_configure_colors }; '
+            'proc configure_colors {} {'
+            ' if {![info exists ::mbot_paleta_aplicada]} {'
+            ' set ::mbot_paleta_aplicada 1; _sv_configure_colors };'
+            f' {nome} }}')
+        janela.tk.call("configure_colors")
     janela.configure(bg=CORES["fundo"])
     icone(janela)
 
     forte = FONTE_FORTE if _fonte_existe(janela, FONTE_FORTE) else FONTE
-    estilo.configure(".", font=(FONTE, 10))
-    estilo.configure("Titulo.TLabel", font=(forte, 18),
-                     foreground=CORES["titulo"])
-    estilo.configure("Subtitulo.TLabel", font=(FONTE, 10),
-                     foreground=CORES["suave"])
-    estilo.configure("Secao.TLabel", font=(forte, 11),
-                     foreground=CORES["titulo"])
-    estilo.configure("Suave.TLabel", font=(FONTE, 9),
-                     foreground=CORES["suave"])
-    estilo.configure("Aviso.TLabel", foreground=CORES["aviso"])
-    estilo.configure("Ok.TLabel", foreground=CORES["ok"])
-
-    # ação destrutiva: botão comum com texto vermelho (padrão do Windows 11,
-    # que reserva a cor de destaque para a ação principal)
-    estilo.configure("Perigo.TButton", foreground=CORES["perigo"])
-
-    # a altura de linha da tabela é em pixels: acompanha a escala
+    global FONTE_ICONES
+    if _fonte_existe(janela, "Segoe Fluent Icons"):
+        FONTE_ICONES = "Segoe Fluent Icons"
+    cores_do_bot()
+    try:
+        _estilos_superficies(janela, estilo, forte)
+        _estilos_campos(janela, estilo)
+        _estilos_botoes(janela, estilo, forte)
+    except tk.TclError:
+        # elemento já criado nesta raiz (aplicar_tema chamado de novo)
+        pass
     estilo.configure("Treeview", rowheight=px(janela, 30))
     return estilo
 
 
-def secao(pai, titulo):
-    """Cartão com título, para agrupar campos do mesmo assunto.
-
-    O título fica na faixa reservada pelo padding de cima e não ocupa
-    linha da grade: quem usa continua pondo os campos a partir de row=0.
-    """
-    lado, topo = px(pai, 16), px(pai, 46)
-    cartao = ttk.Frame(pai, style="Card.TFrame",
-                       padding=(lado, topo, lado, px(pai, 16)))
-    titulo_lbl = ttk.Label(cartao, text=titulo, style="Secao.TLabel")
-    # place() conta a partir de DENTRO do padding: volta para a faixa do topo
-    titulo_lbl.place(x=0, y=px(pai, 14) - topo)
-    return cartao
-
-
+# ----------------------------------------------------- compatibilidade
 BOTOES = {
-    "destaque": "Accent.TButton",
-    "ok": "Accent.TButton",
-    "perigo": "Perigo.TButton",
-    "neutro": "TButton",
+    "destaque": "Primario.TButton", "ok": "Primario.TButton",
+    "primario": "Primario.TButton", "perigo": "Perigo.TButton",
+    "neutro": "Secundario.TButton", "secundario": "Secundario.TButton",
+    "fantasma": "Fantasma.TButton", "fantasma_cartao": "FantasmaCartao.TButton",
 }
 
 
 def botao(pai, texto, comando, cor="neutro", largura=None):
-    """Botão do tema. `cor`: destaque/ok (ação principal), perigo, neutro.
-
-    `largura` fica por compatibilidade: o texto e o padding do tema já dão
-    o tamanho certo, e largura fixa em caracteres deixava botões gigantes.
-    """
+    """Botão do tema. `cor`: primario/destaque/ok, secundario/neutro,
+    perigo, fantasma (sobre o fundo) ou fantasma_cartao (sobre cartão)."""
     return ttk.Button(pai, text=texto, command=comando,
-                      style=BOTOES.get(cor, "TButton"), cursor="hand2")
+                      style=BOTOES.get(cor, "Secundario.TButton"),
+                      cursor="hand2")
 
 
 def quebra_automatica(rotulo, margem=48):
     """O texto quebra pela largura do pai (e não num valor fixo, que ficava
-    errado quando a escala do monitor muda o tamanho da fonte).
-
-    `margem` desconta o padding do cartão e o do próprio rótulo.
-    """
+    errado quando a escala do monitor muda o tamanho da fonte)."""
     pai = rotulo.master
 
     def ajustar(evento):
@@ -302,60 +442,74 @@ def quebra_automatica(rotulo, margem=48):
 
 
 class _Dica(tk.Label):
-    """Faixa informativa (o "InfoBar" do Windows 11) que some sozinha
-    quando fica sem texto."""
+    """Faixa informativa que some sozinha quando fica sem texto."""
 
     def configure(self, cnf=None, **kw):
         if "text" in kw:
             if str(kw["text"]).strip():
                 kw.update(bg=CORES["info_fundo"], font=(FONTE, 9),
-                          padx=px(self.master, 12), pady=px(self.master, 9))
+                          padx=px(self.master, 12), pady=px(self.master, 10))
             else:
-                kw.update(bg=CORES["fundo"], font=(FONTE, 1), padx=0, pady=0)
+                kw.update(bg=CORES["cartao"], font=(FONTE, 1), padx=0, pady=0)
         return super().configure(cnf, **kw)
 
     config = configure
 
 
 def dica(pai, texto="", largura=None):
-    """Faixa azul-clara de informação (o que o site aceita, avisos)."""
-    rotulo = _Dica(pai, fg=CORES["info_texto"], justify="left", anchor="w",
-                   bg=CORES["fundo"], borderwidth=0)
+    """Faixa azul-clara de informação dentro de um cartão."""
+    rotulo = _Dica(pai, fg="#1e3a8a", justify="left", anchor="w",
+                   bg=CORES["cartao"], borderwidth=0)
     rotulo.configure(text=texto)
-    return quebra_automatica(rotulo, margem=88)
+    return quebra_automatica(rotulo, margem=40)
 
 
 def texto_suave(pai, texto, **kw):
-    """Texto secundário que quebra linha pela largura do pai."""
+    """Texto auxiliar (cinza, menor) que quebra linha pela largura do pai."""
     kw.setdefault("justify", "left")
-    return quebra_automatica(ttk.Label(pai, text=texto, style="Suave.TLabel",
-                                       **kw))
+    kw.setdefault("style", "Ajuda.TLabel")
+    return quebra_automatica(ttk.Label(pai, text=texto, **kw))
 
 
-def selo(pai, texto, tipo="Info"):
-    """Etiqueta pequena colorida: tipo Pago, Breve ou Info."""
-    fundo, cor = SELOS.get(tipo, SELOS["Info"])
-    return tk.Label(pai, text=texto, bg=fundo, fg=cor, font=(FONTE, 8),
-                    padx=px(pai, 8), pady=px(pai, 1), borderwidth=0)
+_CACHE_SELOS = {}
+
+
+def selo(pai, texto, tipo="neutro", fundo=None, ponto=False):
+    """Selo em pílula: tipo sucesso, info, aviso, erro, neutro ou primaria.
+    Com `ponto`, leva a bolinha colorida antes do texto (status)."""
+    cor_fundo, cor_texto = SELOS.get(tipo, SELOS["neutro"])
+    fundo = fundo or CORES["cartao"]
+    rotulo = ("●  " if ponto else "") + texto
+    fonte = tkfont.Font(root=pai, family=FONTE_FORTE, size=8)
+    largura = fonte.measure(rotulo) + px(pai, 20)
+    altura = fonte.metrics("linespace") + px(pai, 6)
+    # pílula com cantos transparentes: o tk.Label mistura com o próprio bg,
+    # então o mesmo selo serve em linha normal, com hover ou marcada
+    chave = (str(pai.winfo_toplevel()), largura, altura, cor_fundo)
+    if chave not in _CACHE_SELOS:
+        _CACHE_SELOS[chave] = guardar(pai, ui_imagens.retangulo(
+            pai, largura, altura, altura / 2, cor_fundo))
+    return tk.Label(pai, image=_CACHE_SELOS[chave], text=rotulo, compound="center",
+                    fg=cor_texto, bg=fundo, font=(FONTE_FORTE, 8), borderwidth=0)
 
 
 def campo_texto(pai, altura=3):
-    """Caixa de texto de várias linhas no mesmo desenho dos campos do tema."""
-    return tk.Text(pai, height=altura, wrap="word", font=(FONTE, 10),
-                   bg=CORES["cartao"], fg=CORES["texto"],
-                   insertbackground=CORES["texto"], relief="flat",
-                   borderwidth=0,
-                   highlightthickness=_espessura_borda(pai),
-                   highlightbackground=CORES["borda_campo"],
-                   highlightcolor=CORES["destaque"],
-                   padx=px(pai, 10), pady=px(pai, 8))
+    """Caixa de várias linhas com o mesmo contorno dos campos do tema.
 
-
-def caixa_log(pai, altura=10):
-    """Console escuro do log, com respiro nas bordas."""
-    return tk.Text(pai, height=altura, bg=CORES["log_fundo"],
-                   fg=CORES["log_texto"], insertbackground=CORES["log_texto"],
-                   relief="flat", borderwidth=0, highlightthickness=0,
-                   font=(FONTE_MONO, 9), wrap="word",
-                   padx=px(pai, 12), pady=px(pai, 10),
-                   selectbackground="#264f78")
+    Devolve o `tk.Text`; quem monta a tela posiciona `texto.moldura`.
+    """
+    moldura = tk.Frame(pai, bg=CORES["borda_campo"], padx=1, pady=1)
+    texto = tk.Text(moldura, height=altura, wrap="word", font=(FONTE, 10),
+                    bg="#ffffff", fg=CORES["texto"],
+                    insertbackground=CORES["texto"], relief="flat",
+                    borderwidth=0, highlightthickness=0,
+                    selectbackground=CORES["primaria_borda"],
+                    selectforeground=CORES["texto"],
+                    padx=px(pai, 12), pady=px(pai, 10), undo=True)
+    texto.pack(fill="both", expand=True)
+    texto.bind("<FocusIn>", lambda _e: moldura.configure(
+        bg=CORES["primaria"], padx=2, pady=2), add="+")
+    texto.bind("<FocusOut>", lambda _e: moldura.configure(
+        bg=CORES["borda_campo"], padx=1, pady=1), add="+")
+    texto.moldura = moldura
+    return texto

@@ -58,49 +58,9 @@ def marcar_visto(chave):
         pass   # sem conseguir gravar, o pior caso é o tutorial reaparecer
 
 
-# ------------------------------------------------------ botão de ajuda
-def _dica_flutuante(widget, texto):
-    """Balãozinho de texto ao parar o mouse sobre o widget."""
-    estado = {"janela": None, "agendado": None}
-
-    def mostrar():
-        estado["agendado"] = None
-        if estado["janela"] is not None or not widget.winfo_exists():
-            return
-        balao = tk.Toplevel(widget)
-        balao.overrideredirect(True)
-        balao.attributes("-topmost", True)
-        tk.Label(balao, text=texto, bg="#2b2b2b", fg="#ffffff",
-                 font=(ui_tema.FONTE, 9), padx=ui_tema.px(widget, 8),
-                 pady=ui_tema.px(widget, 4)).pack()
-        balao.update_idletasks()
-        x = widget.winfo_rootx() + widget.winfo_width() - balao.winfo_reqwidth()
-        y = widget.winfo_rooty() + widget.winfo_height() + ui_tema.px(widget, 6)
-        balao.geometry(f"+{x}+{y}")
-        estado["janela"] = balao
-
-    def esconder(_evento=None):
-        if estado["agendado"] is not None:
-            widget.after_cancel(estado["agendado"])
-            estado["agendado"] = None
-        if estado["janela"] is not None:
-            estado["janela"].destroy()
-            estado["janela"] = None
-
-    widget.bind("<Enter>", lambda _e: estado.update(
-        agendado=widget.after(450, mostrar)), add="+")
-    widget.bind("<Leave>", esconder, add="+")
-    widget.bind("<ButtonPress>", esconder, add="+")
-
-
-def botao_ajuda(pai, comando):
-    """O botão "?" do topo das telas: abre o passo a passo de novo."""
-    botao = ttk.Button(pai, text="?", width=3, command=comando, cursor="hand2")
-    _dica_flutuante(botao, "Ver o passo a passo desta tela")
-    return botao
-
-
 # -------------------------------------------------------------- passos
+# (o botão "? Ajuda" que reabre o passo a passo fica no cabeçalho de cada
+# página: ui_componentes.CabecalhoPagina)
 class Passo:
     """Um passo: título, explicação e os widgets que ficam acesos.
 
@@ -172,8 +132,20 @@ class Tutorial:
             self.indice = antes
             self._mostrar()
 
+    def encerrar_sem_marcar(self):
+        """Fecha as camadas sem gravar como visto (o usuário trocou de
+        página no meio do passo a passo: ele volta na próxima visita)."""
+        self.ativo = True
+        self._fechar_camadas()
+
     def encerrar(self, _evento=None):
         """Concluir ou pular: fecha e não volta sozinho nas próximas vezes."""
+        if not self.ativo:
+            return
+        self._fechar_camadas()
+        marcar_visto(self.chave)
+
+    def _fechar_camadas(self):
         if not self.ativo:
             return
         self.ativo = False
@@ -190,7 +162,6 @@ class Tutorial:
             except Exception:
                 pass
         self._faixas, self._contornos, self._cartao = [], None, None
-        marcar_visto(self.chave)
         try:
             self.janela.focus_force()
         except Exception:
@@ -221,30 +192,34 @@ class Tutorial:
         self._tela_contornos.pack(fill="both", expand=True)
 
         self._cartao = self._nova_camada()
-        self._cartao.configure(bg="#bdbdbd")            # vira a borda do cartão
-        moldura = tk.Frame(self._cartao, bg=ui_tema.CORES["fundo"])
+        self._cartao.configure(bg=ui_tema.CORES["borda_campo"])  # a borda
+        moldura = tk.Frame(self._cartao, bg=ui_tema.CORES["cartao"])
         moldura.pack(fill="both", expand=True, padx=1, pady=1)
-        tk.Frame(moldura, bg=ui_tema.CORES["destaque"], height=px(4)).pack(
+        tk.Frame(moldura, bg=ui_tema.CORES["primaria"], height=px(4)).pack(
             fill="x")
-        corpo = ttk.Frame(moldura, padding=(px(20), px(14), px(20), px(16)))
+        corpo = ttk.Frame(moldura, style="Superficie.TFrame",
+                          padding=(px(20), px(14), px(20), px(16)))
         corpo.pack(fill="both", expand=True)
 
-        self._contador = ttk.Label(corpo, style="Suave.TLabel")
+        self._contador = ttk.Label(corpo, style="Ajuda.TLabel")
         self._contador.pack(anchor="w")
         self._titulo = ttk.Label(corpo, style="Secao.TLabel")
         self._titulo.pack(anchor="w", pady=(px(2), px(6)))
-        self._texto = ttk.Label(corpo, wraplength=px(360), justify="left")
+        self._texto = ttk.Label(corpo, wraplength=px(360), justify="left",
+                                style="Texto.TLabel")
         self._texto.pack(anchor="w", fill="x")
 
-        botoes = ttk.Frame(corpo)
+        botoes = ttk.Frame(corpo, style="Superficie.TFrame")
         botoes.pack(fill="x", pady=(px(16), 0))
         ttk.Button(botoes, text="Pular tutorial", command=self.encerrar,
-                   cursor="hand2").pack(side="left")
+                   style="FantasmaCartao.TButton", cursor="hand2").pack(
+            side="left")
         self._bt_proximo = ttk.Button(botoes, text="Próximo",
-                                      style="Accent.TButton", cursor="hand2",
+                                      style="Primario.TButton", cursor="hand2",
                                       command=self.proximo)
         self._bt_proximo.pack(side="right")
         self._bt_anterior = ttk.Button(botoes, text="Anterior",
+                                       style="Secundario.TButton",
                                        cursor="hand2", command=self.anterior)
         self._bt_anterior.pack(side="right", padx=(0, px(8)))
 

@@ -1,20 +1,21 @@
 # src/venda/interface_venda.py
 """
-Interface do módulo Venda/Anúncio (Tkinter).
+Página de Venda/Anúncio (dentro da janela do app, ver interface_principal.py).
 
-Fluxo: login na conta do usuário (Supabase) → lista os veículos DELE →
-usuário marca veículos + sites → Rodar grava parametros_venda.json e
-inicia o anunciador como subprocesso (log na janela, botão Prosseguir
-libera após o login manual nos sites).
+Fluxo: conta do usuário (Supabase) → lista os veículos DELE → usuário marca
+veículos + sites → Rodar grava parametros_venda.json e inicia o anunciador
+como subprocesso (log na página, Prosseguir libera após o login manual nos
+sites).
 
-Duas regras de tela que valem registrar:
-- depois de entrar, o bloco de login some e vira uma linha "Conectado:
-  fulano [Sair]" — ele já cumpriu o papel e só ocupava espaço;
+Regras de tela que valem registrar:
+- a conta é a mesma do rodapé da lateral (`app.banco`): conectada, o bloco
+  de login some e o topo mostra só "● Conectado"; Sair fica na lateral;
 - os campos sensíveis (dados pessoais e usuário/senha por site) só
-  aparecem quando um site que precisa deles está MARCADO. Antes a tela
-  pedia login de sites que nem dava para selecionar.
+  aparecem quando um site que precisa deles está MARCADO;
+- a tabela marca por caixa de marcação, com busca e filtro que escondem
+  linhas sem desmarcar nada (ver ui_tabela.py).
 
-Além de anunciar, a tela desfaz o que já foi feito, de dois jeitos que
+Além de anunciar, a página desfaz o que já foi feito, de dois jeitos que
 NÃO são a mesma coisa:
 - "Anunciar de novo" só apaga o registro LOCAL (anunciados.json), que é
   a trava anti-spam — o anúncio no site continua no ar;
@@ -34,14 +35,23 @@ import tutorial
 import ui_tema
 from paths import get_parametros_venda_path, get_venda_command
 from sinal import dar_sinal, limpar_sinal
+from ui_componentes import Banner, CabecalhoPagina, Cartao, dica_flutuante, placeholder
+from ui_execucao import BarraAcoes, LogExecucao, pede_prosseguir
 from ui_scroll import criar_area_rolavel
+from ui_sites import CartaoSite, GradeSites
+from ui_tabela import TabelaVeiculos
 from venda import anunciados
-from venda.banco import BancoVeiculos
 from venda.config_venda import modo_demo
 from venda.sites import listar_sites, obter_site
 
 processo = None
 log_queue = queue.Queue()
+FIM_DO_BOT = object()
+C = ui_tema.CORES
+
+FILTROS = {"Todos os veículos": "todos",
+           "Ainda não anunciados": "nao_anunciados",
+           "Já anunciados": "anunciados"}
 
 
 def sites_ordenados():
@@ -50,131 +60,240 @@ def sites_ordenados():
                   key=lambda s: (not getattr(s, "disponivel", True), s.nome))
 
 
-def iniciar():
-    """Abre o painel de Venda. Retorna 'voltar' ou 'sair'."""
-    global processo, log_queue
-    banco = BancoVeiculos()
+def selo_do_site(site):
+    """(texto, tipo) do selo e a explicação do cartão do site."""
+    if not getattr(site, "disponivel", True):
+        motivo = getattr(site, "motivo_indisponivel", "")
+        return ("Em breve", "neutro"), f"Ainda não disponível: {motivo}."
+    if site.id == "demo":
+        return ("Teste local", "neutro"), ("Formulário de demonstração no "
+                                           "próprio computador.")
+    if getattr(site, "publicacao_manual", False):
+        return ("Plano pago", "aviso"), ("Pago: o bot preenche tudo e para "
+                                         "antes do plano — escolher e pagar "
+                                         "é decisão sua.")
+    if getattr(site, "navegador", "chrome") != "chrome":
+        return ("Abre no Edge", "info"), "Roda no Microsoft Edge do computador."
+    return ("Disponível", "sucesso"), None
+
+
+def formatar_preco(valor):
+    """18950.0 -> 'R$ 18.950' (o banco manda float e aparecia '.0')."""
+    try:
+        return f"R$ {float(valor):,.0f}".replace(",", ".")
+    except (TypeError, ValueError):
+        return str(valor)
+
+
+class Pagina:
+    def __init__(self, frame, ao_mostrar, encerrar, guia, sair_da_conta):
+        self.frame, self.ao_mostrar, self.encerrar = frame, ao_mostrar, encerrar
+        self.guia, self.sair_da_conta = guia, sair_da_conta
+
+
+def montar(pai, app):
+    """Monta a página de Venda dentro de `pai`. Devolve uma `Pagina`."""
+    global log_queue
+    banco = app.banco
+    root = app.root
     veiculos = []          # dicts normalizados vindos do banco
     vars_sites = {}        # site_id -> IntVar
-    resultado = {"acao": "sair"}
     log_queue = queue.Queue()
-
-    root = tk.Tk()
-    root.title("MarketplaceBot — Venda/Anúncio")
-    ui_tema.aplicar_tema(root)
-    ui_tema.geometria(root, 780, 960, minimo=(660, 600))
     px = lambda valor: ui_tema.px(root, valor)  # noqa: E731
-    espaco = px(14)       # respiro entre um cartão e outro
+    espaco = px(20)
 
-    frm = criar_area_rolavel(root)
-    frm.columnconfigure(0, weight=1)
+    frame = tk.Frame(pai, bg=C["fundo"])
+    frame.columnconfigure(0, weight=1)
+    frame.rowconfigure(0, weight=1)
+    conteudo = criar_area_rolavel(frame, padding=28, empacotar=False)
+    conteudo.master.master.grid(row=0, column=0, sticky="nsew")
+    conteudo.columnconfigure(0, weight=1)
+    tela_rolavel = conteudo.master
     status = tk.StringVar(value="Entre com sua conta para carregar seus veículos.")
-    linha = 0
+    var_dry = tk.IntVar(value=1)
+    agendado = {"log": None}
 
     # ------------------------------ topo ------------------------------
-    topo = ttk.Frame(frm)
-    topo.grid(row=linha, column=0, sticky="we", pady=(0, px(18))); linha += 1
-    ui_tema.botao(topo, "←  Voltar", lambda: encerrar("voltar"),
-                  "neutro").pack(side="left", anchor="n", pady=(px(4), 0))
-    cabeca = ttk.Frame(topo)
-    cabeca.pack(side="left", padx=(px(16), 0))
-    ttk.Label(cabeca, text="Venda / Anúncio", style="Titulo.TLabel").pack(
-        anchor="w")
-    ttk.Label(cabeca, text="Anuncia os veículos do seu banco nos sites escolhidos.",
-              style="Subtitulo.TLabel").pack(anchor="w")
-    bt_ajuda = tutorial.botao_ajuda(topo, lambda: guia.iniciar())
-    bt_ajuda.pack(side="right", anchor="n", pady=(px(4), 0))
+    cabeca = CabecalhoPagina(conteudo, "Venda / Anúncio",
+                             "Anuncia os veículos do seu banco nos sites escolhidos.",
+                             voltar=lambda: app.ir("inicio"),
+                             ajuda=lambda: guia.iniciar())
+    cabeca.grid(row=0, column=0, sticky="we", pady=(0, px(20)))
+    selo_conta = ui_tema.selo(cabeca.direita, "Conectado", "sucesso",
+                              fundo=C["fundo"], ponto=True)
+    dica_flutuante(selo_conta, lambda: f"Conta: {banco.email or ''}")
+
+    lbl_verificando = ttk.Label(conteudo, text="Conectando à sua conta…",
+                                style="Subtitulo.TLabel")
+    lbl_verificando.grid(row=1, column=0, sticky="w")
 
     # ------------------------------ conta ------------------------------
-    sec_conta = ui_tema.secao(frm, "Conta")
-    sec_conta.grid(row=linha, column=0, sticky="we", pady=(0, espaco))
-    linha_conta = linha; linha += 1
-    sec_conta.columnconfigure(1, weight=1)
-    ttk.Label(sec_conta, text="E-mail").grid(row=0, column=0, sticky="w")
-    ent_email_conta = ttk.Entry(sec_conta)
-    ent_email_conta.grid(row=0, column=1, sticky="we", padx=6, pady=2)
-    ttk.Label(sec_conta, text="Senha").grid(row=1, column=0, sticky="w")
-    ent_senha_conta = ttk.Entry(sec_conta, show="•")
-    ent_senha_conta.grid(row=1, column=1, sticky="we", padx=6, pady=2)
+    sec_conta = Cartao(conteudo, "Entre na sua conta", subtitulo=(
+        "Use o mesmo e-mail e senha do sistema onde os veículos estão "
+        "cadastrados. Depois do primeiro acesso a página já abre conectada."))
+    corpo_conta = sec_conta.corpo
+    corpo_conta.columnconfigure(0, weight=1)
+    ttk.Label(corpo_conta, text="E-mail", style="Rotulo.TLabel").grid(
+        row=0, column=0, sticky="w", pady=(0, px(4)))
+    ent_email_conta = ttk.Entry(corpo_conta, width=36)
+    ent_email_conta.grid(row=1, column=0, sticky="we")
+    ttk.Label(corpo_conta, text="Senha", style="Rotulo.TLabel").grid(
+        row=2, column=0, sticky="w", pady=(px(12), px(4)))
+    ent_senha_conta = ttk.Entry(corpo_conta, width=36, show="•")
+    ent_senha_conta.grid(row=3, column=0, sticky="we")
+    lbl_erro_login = ttk.Label(corpo_conta, text="", style="Ajuda.TLabel",
+                               foreground=C["erro_texto"])
+    lbl_erro_login.grid(row=4, column=0, sticky="w", pady=(px(8), 0))
     if modo_demo():
-        ui_tema.dica(sec_conta,
-                     "MODO DEMONSTRAÇÃO: Supabase não configurado — qualquer "
-                     "login entra e os veículos são de exemplo.",
-                     ).grid(row=2, column=0, columnspan=3,
-                            sticky="we", pady=(px(12), 0))
+        Banner(corpo_conta, "MODO DEMONSTRAÇÃO: Supabase não configurado — "
+                            "qualquer login entra e os veículos são de exemplo.",
+               "aviso", fechavel=False, fundo=C["cartao"]).grid(
+            row=6, column=0, sticky="we", pady=(px(12), 0))
 
-    # barra compacta que substitui o bloco de login depois de entrar
-    barra_conta = ttk.Frame(frm)
-    lbl_conta = ttk.Label(barra_conta, text="", style="Ok.TLabel")
-    lbl_conta.pack(side="left")
+    # ---------------------------- colunas -----------------------------
+    colunas = tk.Frame(conteudo, bg=C["fundo"])
+    esquerda = tk.Frame(colunas, bg=C["fundo"])
+    direita = tk.Frame(colunas, bg=C["fundo"])
+    esquerda.columnconfigure(0, weight=1)
+    direita.columnconfigure(0, weight=1)
+    estado_colunas = {"n": 0}
+
+    def reorganizar_colunas(_evento=None):
+        duas = colunas.winfo_width() >= px(1100)
+        n = 2 if duas else 1
+        if n == estado_colunas["n"]:
+            return
+        estado_colunas["n"] = n
+        if duas:
+            colunas.columnconfigure(0, weight=3, uniform="colunas")
+            colunas.columnconfigure(1, weight=2, uniform="colunas")
+            esquerda.grid(row=0, column=0, sticky="nwe", padx=(0, px(10)))
+            direita.grid(row=0, column=1, sticky="nwe", padx=(px(10), 0))
+        else:
+            colunas.columnconfigure(0, weight=1, uniform="")
+            colunas.columnconfigure(1, weight=0, uniform="")
+            esquerda.grid(row=0, column=0, sticky="nwe", padx=0)
+            direita.grid(row=1, column=0, sticky="nwe", padx=0)
+
+    colunas.bind("<Configure>", reorganizar_colunas, add="+")
 
     # ---------------------------- veículos -----------------------------
-    sec_veic = ui_tema.secao(frm, "Seus veículos")
-    sec_veic.columnconfigure(0, weight=1)
+    sec_veic = Cartao(esquerda, "Selecione os veículos", numero=1)
+    sec_veic.grid(row=0, column=0, sticky="we", pady=(0, espaco))
+    corpo_v = sec_veic.corpo
+    corpo_v.columnconfigure(0, weight=1)
+    lbl_contagem = ttk.Label(sec_veic.acoes, text="", style="Ajuda.TLabel")
+    lbl_contagem.pack(side="right")
+
+    ferramentas = ttk.Frame(corpo_v, style="Superficie.TFrame")
+    ferramentas.grid(row=0, column=0, sticky="we", pady=(0, px(12)))
+    ferramentas.columnconfigure(0, weight=1)
+    ent_busca = ttk.Entry(ferramentas, width=28)
+    ent_busca.grid(row=0, column=0, sticky="we", padx=(0, px(10)))
+    placeholder(ent_busca, "Buscar veículo…")
+    cmb_filtro = ttk.Combobox(ferramentas, state="readonly", width=20,
+                              values=list(FILTROS))
+    cmb_filtro.set("Todos os veículos")
+    cmb_filtro.grid(row=0, column=1, sticky="e")
+
+    def atualizar_contagem(total, visiveis, marcados):
+        partes = [f"{total} veículo{'s' if total != 1 else ''}"]
+        if visiveis != total:
+            partes.append(f"{visiveis} na busca")
+        partes.append(f"{marcados} selecionado{'s' if marcados != 1 else ''}")
+        lbl_contagem.configure(text="  •  ".join(partes))
+
+    tabela = TabelaVeiculos(
+        corpo_v, ao_mudar=atualizar_contagem, linhas_visiveis=8,
+        formatar_preco=lambda v: formatar_preco(v["preco"]) if v.get("preco")
+        else "sem preço")
+    tabela.grid(row=1, column=0, sticky="we")
+    ent_busca.bind("<KeyRelease>",
+                   lambda _e: tabela.aplicar_filtro(busca=ent_busca.get()),
+                   add="+")
+    cmb_filtro.bind("<<ComboboxSelected>>", lambda _e: tabela.aplicar_filtro(
+        filtro=FILTROS[cmb_filtro.get()]), add="+")
+
+    rodape_v = ttk.Frame(corpo_v, style="Superficie.TFrame")
+    rodape_v.grid(row=2, column=0, sticky="we", pady=(px(14), 0))
+    rodape_v.columnconfigure(0, weight=1)
+    ttk.Label(rodape_v, text="Com os veículos marcados",
+              style="Rotulo.TLabel").grid(row=0, column=0, sticky="w")
+    botoes_marcados = ttk.Frame(rodape_v, style="Superficie.TFrame")
+    botoes_marcados.grid(row=0, column=1, sticky="e")
     ui_tema.texto_suave(
-        sec_veic, "Clique numa linha para marcar ou desmarcar os veículos "
-                  "que quer anunciar.").grid(row=0, column=0, columnspan=2,
-                                             sticky="w", pady=(0, px(10)))
-    # tabela no lugar da lista de texto: preço, status e onde já foi
-    # anunciado ficam em colunas próprias em vez de uma linha comprida
-    lst_veiculos = ttk.Treeview(
-        sec_veic, columns=("veiculo", "preco", "status", "anunciado"),
-        show="headings", height=8, selectmode="extended")
-    for coluna, titulo, largura, estica in (
-            ("veiculo", "Veículo", 300, True), ("preco", "Preço", 100, False),
-            ("status", "Status", 100, False),
-            ("anunciado", "Já anunciado em", 150, True)):
-        lst_veiculos.heading(coluna, text=titulo, anchor="w")
-        lst_veiculos.column(coluna, width=px(largura), stretch=estica,
-                            anchor="w")
-
-    def alternar_linha(evento):
-        """Um clique marca ou desmarca a linha (sem precisar de Ctrl)."""
-        item = lst_veiculos.identify_row(evento.y)
-        if not item:
-            return None
-        if item in lst_veiculos.selection():
-            lst_veiculos.selection_remove(item)
-        else:
-            lst_veiculos.selection_add(item)
-        return "break"
-
-    lst_veiculos.bind("<Button-1>", alternar_linha)
-    rolagem = ttk.Scrollbar(sec_veic, orient="vertical",
-                            command=lst_veiculos.yview)
-    lst_veiculos.configure(yscrollcommand=rolagem.set)
-    lst_veiculos.grid(row=1, column=0, sticky="we")
-    rolagem.grid(row=1, column=1, sticky="ns")
-    linha_veic = linha; linha += 1
+        rodape_v, "Anunciar de novo só libera a trava local (o anúncio antigo "
+                  "continua no ar); Excluir anúncio tira o anúncio do ar no "
+                  "site marcado.").grid(row=1, column=0, columnspan=2,
+                                        sticky="we", pady=(px(6), 0))
 
     # ------------------------------ sites ------------------------------
-    sec_sites = ui_tema.secao(frm, "Sites")
-    sec_sites.columnconfigure(0, weight=1)
-    linha_sites = linha; linha += 1
+    sec_sites = Cartao(direita, "Sites para anunciar", numero=2, subtitulo=(
+        "Cada veículo é anunciado no máximo UMA vez por site (anti-spam)."))
+    sec_sites.grid(row=0, column=0, sticky="we", pady=(0, espaco))
+    grade_sites = GradeSites(sec_sites.corpo, largura_min=132)
+    grade_sites.pack(fill="x")
+    for site in sites_ordenados():
+        var = tk.IntVar(value=0)
+        var.trace_add("write", lambda *_: atualizar_campos_sensiveis())
+        vars_sites[site.id] = var
+        selo, explicacao = selo_do_site(site)
+        grade_sites.adicionar(CartaoSite(
+            grade_sites, site.id, site.nome.replace(" (cotação de venda)", ""),
+            var, selo=selo, disponivel=getattr(site, "disponivel", True),
+            dica=explicacao))
+
+    # a Página não usa o Marketplace (o Facebook responde "Pages can't use
+    # Marketplace"): o anúncio dela é um post no feed, e o bot precisa saber
+    # em QUAL Página postar quando a conta administra mais de uma
+    quadro_pagina_fb = ttk.Frame(sec_sites.corpo, style="Superficie.TFrame")
+    quadro_pagina_fb.columnconfigure(0, weight=1)
+    ttk.Label(quadro_pagina_fb, text="Página do Facebook",
+              style="Rotulo.TLabel").grid(row=0, column=0, sticky="w",
+                                          pady=(0, px(4)))
+    ent_pagina_fb = ttk.Entry(quadro_pagina_fb, width=28)
+    ent_pagina_fb.grid(row=1, column=0, sticky="we")
+    placeholder(ent_pagina_fb, "Em branco = a única que você administra")
+
+    # o mesmo post pode ir para grupos de que a PÁGINA participa
+    quadro_grupos_fb = ttk.Frame(sec_sites.corpo, style="Superficie.TFrame")
+    ttk.Label(quadro_grupos_fb, text="Grupos (um por linha)",
+              style="Rotulo.TLabel").pack(anchor="w", pady=(0, px(4)))
+    txt_grupos_fb = ui_tema.campo_texto(quadro_grupos_fb, altura=3)
+    txt_grupos_fb.moldura.pack(fill="x")
+    ui_tema.texto_suave(
+        quadro_grupos_fb,
+        "Só entram grupos em que a PÁGINA entrou. Poucos e relevantes: "
+        "disparo em muitos grupos de uma vez é o que o Facebook trata como "
+        "spam.").pack(anchor="w", fill="x", pady=(px(4), 0))
 
     # -------------------- dados sensíveis (dinâmico) --------------------
-    sec_dados = ui_tema.secao(frm, "Seus dados e logins — não são salvos")
-    sec_dados.columnconfigure(1, weight=1)
-    sec_dados.columnconfigure(3, weight=1)
-    linha_dados = linha; linha += 1
+    # fica embaixo da tabela: a coluna dos sites já é a mais comprida
+    sec_dados = Cartao(esquerda, "Seus dados e logins",
+                       subtitulo="Não são salvos.")
+    corpo_d = sec_dados.corpo
+    corpo_d.columnconfigure(0, weight=1)
+    Banner(corpo_d, "Nada aqui é gravado em disco: vai só para o processo do "
+                    "bot e some quando ele termina. Sites com 2FA ou captcha "
+                    "continuam exigindo você na janela.", "info",
+           fechavel=False, fundo=C["cartao"]).grid(row=0, column=0,
+                                                   sticky="we",
+                                                   pady=(0, px(12)))
 
-    ui_tema.dica(sec_dados,
-                 "Nada aqui é gravado em disco: vai só para o processo do bot "
-                 "e some quando ele termina. Sites com 2FA ou captcha "
-                 "continuam exigindo você na janela.").grid(
-        row=0, column=0, columnspan=4, sticky="we", pady=(0, px(12)))
-
-    quadro_pessoais = ttk.Frame(sec_dados)
-    quadro_pessoais.grid(row=1, column=0, columnspan=4, sticky="we")
+    quadro_pessoais = ttk.Frame(corpo_d, style="Superficie.TFrame")
+    quadro_pessoais.grid(row=1, column=0, sticky="we")
     campos_pessoais = {}
-    for coluna, (campo, rotulo) in enumerate(
+    for indice, (campo, rotulo) in enumerate(
             (("nome", "Nome"), ("cpf", "CPF"),
              ("telefone", "Telefone"), ("email", "E-mail"))):
-        ttk.Label(quadro_pessoais, text=rotulo).grid(
-            row=0, column=coluna, sticky="w", padx=(0, 4))
+        linha_g, coluna_g = divmod(indice, 2)
+        quadro_pessoais.columnconfigure(coluna_g, weight=1)
+        ttk.Label(quadro_pessoais, text=rotulo, style="Rotulo.TLabel").grid(
+            row=linha_g * 2, column=coluna_g, sticky="w", pady=(px(4), px(4)),
+            padx=(0 if coluna_g == 0 else px(10), 0))
         entrada = ttk.Entry(quadro_pessoais, width=15)
-        entrada.grid(row=1, column=coluna, sticky="we", padx=(0, 8))
-        quadro_pessoais.columnconfigure(coluna, weight=1)
+        entrada.grid(row=linha_g * 2 + 1, column=coluna_g, sticky="we",
+                     padx=(0, px(10)) if coluna_g == 0 else (px(10), 0))
         campos_pessoais[campo] = entrada
 
     campos_login = {}
@@ -183,60 +302,35 @@ def iniciar():
     for site in listar_sites():
         if not getattr(site, "exige_login", False):
             continue
-        quadro = ttk.Frame(sec_dados)
+        quadro = ttk.Frame(corpo_d, style="Superficie.TFrame")
         ttk.Label(quadro, text=f"{site.nome} — usuário e senha",
-                  style="Secao.TLabel").grid(row=0, column=0, columnspan=2,
-                                             sticky="w", pady=(8, 2))
-        usuario = ttk.Entry(quadro, width=26)
-        usuario.grid(row=1, column=0, sticky="we", padx=(0, 8))
-        senha = ttk.Entry(quadro, width=20, show="•")
+                  style="Rotulo.TLabel").grid(row=0, column=0, columnspan=2,
+                                              sticky="w", pady=(px(14), px(4)))
+        usuario = ttk.Entry(quadro, width=20)
+        usuario.grid(row=1, column=0, sticky="we", padx=(0, px(10)))
+        placeholder(usuario, "Usuário")
+        senha = ttk.Entry(quadro, width=16, show="•")
         senha.grid(row=1, column=1, sticky="we")
         quadro.columnconfigure(0, weight=1)
         quadro.columnconfigure(1, weight=1)
-        quadro.grid(row=proxima, column=0, columnspan=4, sticky="we")
         quadros_login[site.id] = (quadro, proxima)
         campos_login[site.id] = {"usuario": usuario, "senha": senha}
         proxima += 1
 
-    # ------------------------------ ações ------------------------------
-    frm_acoes = ttk.Frame(frm)
-    linha_acoes = linha; linha += 1
-    var_dry = tk.IntVar(value=1)
-    chk_dry = ttk.Checkbutton(
-        frm_acoes, variable=var_dry,
-        text="Modo teste (dry-run) — preenche, mas não publica")
-    chk_dry.pack(anchor="w", pady=(0, px(12)))
-    botoes = ttk.Frame(frm_acoes)
-    botoes.pack(fill="x")
-
-    sec_log = ui_tema.secao(frm, "Log do anunciador")
-    sec_log.columnconfigure(0, weight=1)
-    txt_log = ui_tema.caixa_log(sec_log, altura=9)
-    txt_log.grid(row=0, column=0, sticky="we")
-    linha_log = linha; linha += 1
-
-    ui_tema.quebra_automatica(
-        ttk.Label(frm, textvariable=status, style="Suave.TLabel")).grid(
-        row=linha, column=0, sticky="w", pady=(px(10), 0))
+    # ------------------------------- log -------------------------------
+    log = LogExecucao(conteudo, "Log do anunciador", altura=11)
 
     # ----------------------------- funções -----------------------------
-    def formatar_preco(valor):
-        """18950.0 -> 'R$ 18.950' (o banco manda float e aparecia '.0')."""
+    def nome_site(site_id):
         try:
-            return f"R$ {float(valor):,.0f}".replace(",", ".")
-        except (TypeError, ValueError):
-            return str(valor)
+            return obter_site(site_id).nome
+        except KeyError:
+            return site_id
 
     def preencher_lista():
-        lst_veiculos.delete(*lst_veiculos.get_children())
         registros = anunciados.carregar()
-        for indice, v in enumerate(veiculos):
-            preco = formatar_preco(v["preco"]) if v.get("preco") else "sem preço"
-            ja = anunciados.sites_do_veiculo(v["id"], registros)
-            # o iid é o índice em `veiculos`: escolha_atual volta por ele
-            lst_veiculos.insert("", "end", iid=str(indice), values=(
-                v["titulo"], preco, v.get("status") or "",
-                ", ".join(ja) if ja else "—"))
+        tabela.carregar(veiculos, lambda v: [
+            nome_site(s) for s in anunciados.sites_do_veiculo(v["id"], registros)])
 
     def carregar_veiculos():
         nonlocal veiculos
@@ -264,19 +358,19 @@ def iniciar():
             quadro_pessoais.grid_remove()
         for sid, (quadro, onde) in quadros_login.items():
             if sid in com_login:
-                quadro.grid(row=onde, column=0, columnspan=4, sticky="we")
+                quadro.grid(row=onde, column=0, sticky="we")
             else:
                 quadro.grid_remove()
 
         if "facebook_pagina" in marcados:
-            quadro_pagina_fb.pack(anchor="w", pady=(px(10), 0))
-            quadro_grupos_fb.pack(fill="x", pady=(px(10), 0))
+            quadro_pagina_fb.pack(fill="x", pady=(px(6), 0))
+            quadro_grupos_fb.pack(fill="x", pady=(px(12), 0))
         else:
             quadro_pagina_fb.pack_forget()
             quadro_grupos_fb.pack_forget()
 
         if precisa_pessoais or com_login:
-            sec_dados.grid(row=linha_dados, column=0, sticky="we", pady=(0, espaco))
+            sec_dados.grid(row=1, column=0, sticky="we", pady=(0, espaco))
         else:
             sec_dados.grid_remove()
 
@@ -286,110 +380,83 @@ def iniciar():
                 return site
         return None
 
+    def mostrar_login():
+        lbl_verificando.grid_remove()
+        for alvo in (colunas, log):
+            alvo.grid_remove()
+        barra.grid_remove()
+        selo_conta.pack_forget()
+        sec_conta.grid(row=1, column=0, sticky="w", pady=(0, espaco))
+        sec_conta.configure(width=px(520))
+
     def apos_login():
+        lbl_verificando.grid_remove()
         sec_conta.grid_remove()
-        lbl_conta.config(text=f"Conectado: {banco.email}")
-        barra_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, espaco))
-        ui_tema.botao(barra_conta, "Sair", sair_da_conta, "neutro", 8).pack(
-            side="right")
-        sec_veic.grid(row=linha_veic, column=0, sticky="we", pady=(0, espaco))
-        sec_sites.grid(row=linha_sites, column=0, sticky="we", pady=(0, espaco))
-        frm_acoes.grid(row=linha_acoes, column=0, sticky="we", pady=(0, espaco))
-        sec_log.grid(row=linha_log, column=0, sticky="we")
+        lbl_erro_login.configure(text="")
+        selo_conta.pack(side="right")
+        colunas.grid(row=1, column=0, sticky="we")
+        log.grid(row=2, column=0, sticky="we")
+        barra.grid(row=1, column=0, sticky="we")
+        app.definir_conta(banco.email)
         atualizar_campos_sensiveis()
         carregar_veiculos()
         # primeira vez: o passo a passo abre depois que a lista carrega
-        guia.iniciar_se_primeira_vez()
+        if app.atual == "venda":
+            guia.iniciar_se_primeira_vez()
 
     def sair_da_conta():
-        for widget in barra_conta.winfo_children():
-            if isinstance(widget, (tk.Button, ttk.Button)):
-                widget.destroy()
-        barra_conta.grid_remove()
-        for alvo in (sec_veic, sec_sites, sec_dados, frm_acoes, sec_log):
-            alvo.grid_remove()
-        sec_conta.grid(row=linha_conta, column=0, sticky="we", pady=(0, espaco))
-        status.set("Sessão encerrada nesta tela.")
+        if processo is not None and processo.poll() is None:
+            parar()
+        banco.logout()
+        app.definir_conta(None)
+        mostrar_login()
+        status.set("Sessão encerrada.")
 
-    def entrar():
+    def entrar(_evento=None):
         ok, erro = banco.login(ent_email_conta.get().strip(),
                                ent_senha_conta.get())
         if not ok:
+            lbl_erro_login.configure(text=erro)
             status.set(erro)
             return
+        ent_senha_conta.delete(0, "end")
         apos_login()
 
-    ui_tema.botao(sec_conta, "Entrar", entrar, "destaque", 10).grid(
-        row=0, column=2, rowspan=2, padx=(8, 0), sticky="ns")
-
-    for site in sites_ordenados():
-        var = tk.IntVar(value=0)
-        var.trace_add("write", atualizar_campos_sensiveis)
-        vars_sites[site.id] = var
-        disponivel = getattr(site, "disponivel", True)
-        linha_site = ttk.Frame(sec_sites)
-        linha_site.pack(anchor="w", fill="x", pady=px(3))
-        ttk.Checkbutton(linha_site, text=site.nome, variable=var,
-                        state="normal" if disponivel else "disabled").pack(
-            side="left")
-        # selos no lugar do texto laranja solto no meio da linha
-        if getattr(site, "publicacao_manual", False) and disponivel:
-            ui_tema.selo(linha_site, "pago · o bot para antes do plano",
-                         "Pago").pack(side="left", padx=(px(10), 0))
-        if getattr(site, "navegador", "chrome") != "chrome" and disponivel:
-            ui_tema.selo(linha_site, "abre no Microsoft Edge", "Info").pack(
-                side="left", padx=(px(10), 0))
-        if not disponivel:
-            ui_tema.selo(linha_site, "Em breve", "Breve").pack(
-                side="left", padx=(px(10), 0))
-            motivo = getattr(site, "motivo_indisponivel", "")
-            if motivo:
-                ttk.Label(linha_site, text=motivo,
-                          style="Suave.TLabel").pack(side="left",
-                                                     padx=(px(8), 0))
-    # a Página não usa o Marketplace (o Facebook responde "Pages can't use
-    # Marketplace"): o anúncio dela é um post no feed, e o bot precisa saber
-    # em QUAL Página postar quando a conta administra mais de uma
-    quadro_pagina_fb = ttk.Frame(sec_sites)
-    ttk.Label(quadro_pagina_fb, text="Página do Facebook:").pack(side="left")
-    ent_pagina_fb = ttk.Entry(quadro_pagina_fb, width=28)
-    ent_pagina_fb.pack(side="left", padx=(6, 0))
-    ttk.Label(quadro_pagina_fb,
-              text="(em branco = a única que você administra)",
-              style="Suave.TLabel").pack(side="left", padx=(6, 0))
-
-    # o mesmo post pode ir para grupos de que a PÁGINA participa
-    quadro_grupos_fb = ttk.Frame(sec_sites)
-    ttk.Label(quadro_grupos_fb, text="Grupos (um por linha):").pack(anchor="w")
-    txt_grupos_fb = ui_tema.campo_texto(quadro_grupos_fb, altura=3)
-    txt_grupos_fb.pack(fill="x")
-    ui_tema.texto_suave(
-        quadro_grupos_fb,
-        "Só entram grupos em que a PÁGINA entrou. Poucos e relevantes: "
-        "disparo em muitos grupos de uma vez é o que o Facebook trata como "
-        "spam.").pack(anchor="w", fill="x", pady=(px(4), 0))
-
-    ttk.Label(sec_sites,
-              text="Cada veículo é anunciado no máximo UMA vez por site "
-                   "(anti-spam).", style="Suave.TLabel").pack(anchor="w",
-                                                              pady=(6, 0))
+    ttk.Button(corpo_conta, text="Entrar", style="Primario.TButton",
+               cursor="hand2", command=entrar).grid(
+        row=5, column=0, sticky="w", pady=(px(12), 0))
+    ent_senha_conta.bind("<Return>", entrar)
 
     def ler_saida(proc):
         for saida in proc.stdout:
             log_queue.put(saida)
-        log_queue.put("\n[anunciador encerrado]\n")
-
-    agendado = {"log": None}
+        log_queue.put(FIM_DO_BOT)
 
     def drenar_log():
         while not log_queue.empty():
-            txt_log.insert("end", log_queue.get_nowait())
-            txt_log.see("end")
+            item = log_queue.get_nowait()
+            if item is FIM_DO_BOT:
+                log.adicionar("Anunciador encerrado.")
+                terminou()
+                continue
+            log.adicionar(item)
+            if pede_prosseguir(item):
+                barra.definir_estado("aguardando")
+            elif item.strip() == "Prosseguindo.":
+                barra.definir_estado("rodando")
         agendado["log"] = root.after(100, drenar_log)
 
+    def terminou():
+        global processo
+        processo = None
+        barra.definir_estado("parado")
+        log.ao_vivo(False)
+        preencher_lista()        # atualiza "Já anunciado em"
+        status.set("Execução encerrada. Confira o log.")
+
     def escolha_atual():
-        """(veículos marcados na lista, sites marcados). Vazio = erro."""
-        return ([veiculos[int(i)] for i in lst_veiculos.selection()],
+        """(veículos marcados na tabela, sites marcados). Vazio = erro."""
+        return ([veiculos[i] for i in tabela.marcados()],
                 [sid for sid, var in vars_sites.items() if var.get()])
 
     def rodar(acao="anunciar"):
@@ -432,7 +499,7 @@ def iniciar():
         )
 
         limpar_sinal()
-        txt_log.delete("1.0", "end")
+        log.limpar()
         processo = subprocess.Popen(
             get_venda_command(),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -445,6 +512,9 @@ def iniciar():
         else:
             status.set("Anunciador iniciado. Logue nos sites abertos e clique "
                        "em Prosseguir.")
+        barra.definir_estado("rodando")
+        log.ao_vivo(True)
+        root.after(150, lambda: tela_rolavel.yview_moveto(1.0))
 
     def anunciar_de_novo():
         """Libera a trava anti-spam: some com o registro local do par
@@ -500,6 +570,7 @@ def iniciar():
         if processo is not None and processo.poll() is None:
             dar_sinal()
             status.set("Sinal enviado — o anunciador vai prosseguir.")
+            barra.definir_estado("rodando")
         else:
             status.set("O anunciador não está rodando.")
 
@@ -512,10 +583,12 @@ def iniciar():
             status.set("Anunciador parado.")
         else:
             status.set("O anunciador não está rodando.")
+        barra.definir_estado("parado")
+        log.ao_vivo(False)
 
-    def encerrar(acao):
-        resultado["acao"] = acao
-        parar()
+    def encerrar():
+        if processo is not None and processo.poll() is None:
+            parar()
         # sem cancelar, o polling do log dispara depois do destroy e o Tk
         # reclama de "invalid command name"
         if agendado["log"] is not None:
@@ -523,58 +596,63 @@ def iniciar():
                 root.after_cancel(agendado["log"])
             except Exception:
                 pass
-        root.destroy()
 
-    # uma só ação em destaque (Rodar); as destrutivas têm texto vermelho
-    ui_tema.botao(botoes, "Rodar", rodar, "ok").pack(side="left",
-                                                     padx=(0, px(8)))
-    ui_tema.botao(botoes, "Prosseguir", prosseguir, "neutro").pack(
-        side="left", padx=(0, px(8)))
-    ui_tema.botao(botoes, "Parar", parar, "perigo").pack(side="left")
+    bt_de_novo = ttk.Button(botoes_marcados, text="Anunciar de novo",
+                            style="Secundario.TButton", cursor="hand2",
+                            command=anunciar_de_novo)
+    bt_de_novo.pack(side="left", padx=(0, px(8)))
+    bt_excluir = ttk.Button(botoes_marcados, text="Excluir anúncio",
+                            style="Perigo.TButton", cursor="hand2",
+                            command=excluir_anuncio)
+    bt_excluir.pack(side="left")
 
-    botoes2 = ttk.Frame(botoes.master)
-    botoes2.pack(fill="x", pady=(px(10), 0))
-    ui_tema.botao(botoes2, "Anunciar de novo", anunciar_de_novo,
-                  "neutro").pack(side="left", padx=(0, px(8)))
-    ui_tema.botao(botoes2, "Excluir anúncio", excluir_anuncio,
-                  "perigo").pack(side="left")
-    ui_tema.texto_suave(
-        botoes.master,
-        "Anunciar de novo só libera a trava local; Excluir tira o anúncio do "
-        "ar no site.").pack(anchor="w", fill="x", pady=(px(8), 0))
-
-    root.protocol("WM_DELETE_WINDOW", lambda: encerrar("sair"))
+    barra = BarraAcoes(frame, var_dry, rodar, prosseguir, parar, status,
+                       verbo="publica")
 
     # ---------------------------- passo a passo ----------------------------
-    # abre sozinho só na primeira vez (depois do login); depois, pelo "?"
-    guia = tutorial.Tutorial(root, "venda", rolavel=frm, passos=[
+    # abre sozinho só na primeira visita já conectada; depois, pelo "?"
+    guia = tutorial.Tutorial(root, "venda-v2", rolavel=conteudo, passos=[
         tutorial.Passo(
-            "Tela de Venda",
+            "Página de Venda",
             "Aqui você escolhe quais veículos do seu sistema anunciar e em "
             "quais sites. O bot abre os sites e preenche os anúncios por "
             "você."),
         tutorial.Passo(
             "Sua conta",
             "Entre com o mesmo e-mail e senha do sistema onde os veículos "
-            "estão cadastrados. Depois do primeiro acesso a tela já abre "
+            "estão cadastrados. Depois do primeiro acesso a página já abre "
             "conectada.",
             lambda: [sec_conta], opcional=True),
         tutorial.Passo(
             "Conta conectada",
-            "Mostra com qual conta você está. Sair troca de conta.",
-            lambda: [barra_conta], opcional=True),
+            "Mostra que a conta está conectada (pare o mouse para ver qual). "
+            "Para trocar de conta, use Sair no rodapé da barra lateral.",
+            lambda: [selo_conta], opcional=True),
         tutorial.Passo(
-            "Seus veículos",
-            "Clique numa linha para marcar o veículo e clique de novo para "
-            "desmarcar. 'Já anunciado em' mostra onde ele já foi publicado — "
-            "o bot não repete o mesmo anúncio no mesmo site.",
-            lambda: [sec_veic], opcional=True),
+            "1. Seus veículos",
+            "Marque a caixa de cada veículo que quer anunciar — ou a caixa do "
+            "cabeçalho para marcar todos os que estão à vista. 'Já anunciado "
+            "em' mostra onde ele já foi publicado: o bot não repete o mesmo "
+            "anúncio no mesmo site.",
+            lambda: [tabela], opcional=True),
         tutorial.Passo(
-            "Sites",
-            "Marque onde anunciar. Os selos avisam: 'pago' quer dizer que o "
-            "bot preenche tudo e para antes do plano — pagar é decisão sua; "
-            "'abre no Microsoft Edge' roda no Edge; 'Em breve' ainda não "
-            "está disponível.",
+            "Buscar e filtrar",
+            "Digite parte do nome para achar um veículo, ou mostre só os que "
+            "ainda não foram anunciados. Buscar não desmarca nada.",
+            lambda: [ferramentas], opcional=True),
+        tutorial.Passo(
+            "Anunciar de novo e Excluir anúncio",
+            "Valem para os veículos marcados. Anunciar de novo libera o "
+            "veículo para ser anunciado outra vez (o anúncio antigo continua "
+            "no ar). Excluir anúncio tira o anúncio do ar no site marcado — e "
+            "pede confirmação antes.",
+            lambda: [botoes_marcados], opcional=True),
+        tutorial.Passo(
+            "2. Sites para anunciar",
+            "Clique nos cartões dos sites. 'Plano pago' quer dizer que o bot "
+            "preenche tudo e para antes do plano — pagar é decisão sua; 'Abre "
+            "no Edge' roda no Microsoft Edge; 'Em breve' ainda não está "
+            "disponível.",
             lambda: [sec_sites], opcional=True),
         tutorial.Passo(
             "Seus dados e logins",
@@ -583,36 +661,42 @@ def iniciar():
             lambda: [sec_dados], opcional=True),
         tutorial.Passo(
             "Modo teste",
-            "Marcado, o bot preenche os formulários mas não publica. Use "
-            "para conferir antes de publicar de verdade.",
-            lambda: [chk_dry], opcional=True),
+            "Ligado, o bot preenche os formulários mas não publica. Use para "
+            "conferir antes de publicar de verdade — desligado, a faixa fica "
+            "amarela.",
+            lambda: [barra.bloco_teste], opcional=True),
         tutorial.Passo(
             "Rodar, Prosseguir e Parar",
             "Rodar abre os sites marcados, cada um numa aba. Faça o login em "
-            "cada aba e clique em Prosseguir para o bot começar a preencher. "
-            "Parar interrompe a qualquer momento.",
-            lambda: [botoes], opcional=True),
-        tutorial.Passo(
-            "Anunciar de novo e Excluir anúncio",
-            "Anunciar de novo libera o veículo para ser anunciado outra vez "
-            "(o anúncio antigo continua no ar). Excluir anúncio tira o "
-            "anúncio do ar no site — e pede confirmação antes.",
-            lambda: [botoes2], opcional=True),
+            "cada aba e clique em Prosseguir (ele fica roxo quando o bot está "
+            "esperando). Parar interrompe a qualquer momento.",
+            lambda: [barra.bt_prosseguir, barra.bt_parar, barra.bt_rodar],
+            opcional=True),
         tutorial.Passo(
             "Acompanhe pelo log",
-            "Tudo o que o anunciador faz aparece aqui, campo por campo.",
-            lambda: [sec_log], opcional=True),
+            "Tudo o que o anunciador faz aparece aqui, com hora e ícone por "
+            "tipo: informação, sucesso, aviso ou erro.",
+            lambda: [log], opcional=True),
         tutorial.Passo(
             "Precisa rever?",
             "Clique no ? a qualquer momento para ver este passo a passo de "
             "novo.",
-            lambda: [bt_ajuda]),
+            lambda: [cabeca.bt_ajuda]),
     ])
 
-    # sessão salva: pula a tela de login
-    if banco.tentar_sessao_salva():
-        apos_login()
+    def ao_mostrar():
+        if banco.logado:
+            guia.iniciar_se_primeira_vez()
+
+    # sessão salva (conferida pela janela ao abrir): pula a tela de login
+    app.quando_sessao_verificada(
+        lambda ok: apos_login() if ok else mostrar_login())
 
     drenar_log()
-    root.mainloop()
-    return resultado["acao"]
+    return Pagina(frame, ao_mostrar, encerrar, guia, sair_da_conta)
+
+
+def iniciar():
+    """Abre o app direto na Venda (compatibilidade)."""
+    import interface_principal
+    interface_principal.iniciar("venda")

@@ -6,54 +6,83 @@ iCarros e envia mensagens) e **Venda/Anúncio** (anuncia veículos do banco
 Supabase do usuário em sites de classificados). Distribuído por instalador
 com auto-update.
 
-Navegação: `interface_principal.iniciar()` é um laço — o seletor abre o modo
-escolhido e cada tela devolve `"voltar"` (o seletor reaparece) ou `"sair"`
-(encerra). Por isso `interface_bot` e `interface_venda` expõem `iniciar()` e
-NUNCA montam a GUI no import: seria impossível abrir a tela duas vezes no
-mesmo processo.
+Navegação (set/2026): janela ÚNICA (`interface_principal.App`) com lateral
+fixa — Início, Compra, Venda/Anúncio; "Anúncios salvos", "Histórico" e
+"Configurações" aparecem como "Em breve", sem tela falsa — e a página da
+vez. `interface_bot.montar(pai, app)` e `interface_venda.montar(pai, app)`
+devolvem uma `Pagina` (`frame`, `ao_mostrar`, `encerrar`, `guia`): cada
+página é montada na primeira visita e fica viva, então trocar de página não
+perde o preenchido nem para um bot em execução; fechar a janela chama
+`encerrar()` de todas. Os módulos NUNCA montam GUI no import (`iniciar()`
+deles só abre o app naquela página). A sessão do Supabase é conferida uma
+vez numa thread que NÃO toca no Tk (a principal consulta o resultado com
+`after` — `after` chamado da thread falhava calado) e `app.banco` é o mesmo
+objeto da Venda: o refresh token só vale uma vez. "Sair" fica no rodapé da
+lateral e faz `banco.logout()` de verdade (antes só limpava a tela).
 
-Aparência (set/2026): tema **Sun Valley** (`sv-ttk`, visual do Windows 11)
-+ `ui_tema.py`, que concentra cor, fonte e os blocos das telas — `secao()`
-(cartão `Card.TFrame` com título), `botao()` (`Accent.TButton` para a ação
-principal, texto vermelho `Perigo.TButton` para destrutivas), `dica()`
-(faixa azul-clara que some sozinha sem texto), `selo()` ("pago", "Em
-breve", "abre no Edge"), `campo_texto()` e `caixa_log()` — e
-`ui_scroll.criar_area_rolavel()` (sem rolagem, os botões de ação ficavam
-fora de alcance). `main.py` chama `ui_tema.preparar_dpi()` ANTES da primeira
-janela: sem isso o Windows estica o Tk e a fonte sai borrada (era boa parte
-da cara de "Windows XP"); por isso tamanho de janela vai por
-`ui_tema.geometria()` e medidas em pixel por `ui_tema.px()`. Pegadinhas:
-`place()` conta a posição DENTRO do padding do frame (o título da seção usa
-deslocamento negativo); o `ttk.Label` do Sun Valley não pinta fundo (dica e
-selo são `tk.Label`); e o tema é Tcl + imagens, então o .spec leva
-`collect_data_files("sv_ttk")` — sem isso o exe abre com a cara antiga. Na
-Venda, a lista de veículos é uma `ttk.Treeview` (um clique marca/desmarca;
-o `iid` é o índice em `veiculos`). Regra de layout: campo que o
-site escolhido NÃO usa **some** (`grid_remove`), em vez de ficar cinza —
-`campos_do_site()` na Compra e o `trace` das checkboxes na Venda decidem o
-que aparece. Na Venda, dados pessoais e usuário/senha só aparecem quando um
-site que os exige está marcado (`exige_login`, `exige_dados_pessoais`), e o
-bloco de login do Supabase se recolhe numa linha "Conectado: … [Sair]".
+Aparência (set/2026, v2): lateral escura + conteúdo claro, roxo #7C3AED
+como cor principal, azul de apoio e verde/âmbar/vermelho só para estado.
+- `ui_tema.py`: tokens (`CORES`, `SELOS`, `ESPACO`, `RAIO`, fontes, glifos
+  `ICONES` da Segoe MDL2 Assets) e os estilos ttk — botões `Primario`,
+  `Secundario`, `Destaque`, `Perigo` (contorno), `PerigoCheio`,
+  `Fantasma`/`FantasmaCartao`, `IconePerigo`, `Lateral`; campo
+  `Campo.field` (borda #CBD5E1, hover #94A3B8, foco roxo com anel claro,
+  também na Combobox só leitura); `Cartao.TFrame`; rótulos `Titulo`,
+  `Subtitulo`, `Secao`, `Rotulo`, `Texto`, `Ajuda`, `Numero`.
+- `ui_imagens.py`: cantos arredondados com antisserrilhado, borda, anel de
+  foco, sombra, gradiente, caixa de marcação e interruptor viram PNG gerado
+  em código (distância com sinal, sem Pillow).
+- Componentes: `ui_componentes.py` (Cartao, CabecalhoPagina, Marcador,
+  Interruptor, `placeholder()` — rótulo por cima, `.get()` continua vazio —,
+  `dica_flutuante()`, Banner, `estilo_moldura()`), `ui_sites.py`
+  (CartaoSite + GradeSites responsiva), `ui_execucao.py` (LogExecucao com
+  hora e ícone por nível via `nivel_da_linha`, BarraAcoes fixa com o modo
+  teste e os estados parado/rodando/aguardando, ResumoExecucao),
+  `ui_tabela.py` (TabelaVeiculos: marcação é a verdade, busca e filtro só
+  escondem linhas) e `ui_scroll.py` (UMA ligação de roda por janela, que
+  rola a área rolável mais próxima do ponteiro; Combobox não troca valor
+  com a roda).
+- Estados: Rodar só parado; Parar e Prosseguir só rodando; "aguardando"
+  (Prosseguir roxo) vem da linha em que o bot pede "'Prosseguir'"
+  (`pede_prosseguir`) e acaba em "Prosseguindo.". O modo teste trava
+  durante a execução e, desligado, a faixa fica âmbar.
+- Pegadinhas que custaram capturas: (1) elemento de imagem ttk mistura o
+  alpha com o cinza do sistema — imagem ttk é "assada" sobre a cor de trás
+  (tk.Label e Canvas misturam certo); (2) `element_create(border=)` usa o
+  border também como respiro interno: passar `padding=0`; (3) o sv-ttk
+  liga `configure_colors` ao `<<ThemeChanged>>` — que o Tk dispara a cada
+  estilo/elemento criado — e ele volta o estilo "." para #fafafa e chama
+  `tk_setPalette`, cujo `RecolorTree` pinta #fafafa/#1c1c1c em toda opção
+  de cor vazia de TODOS os widgets já montados: os ttk.Label perdiam o
+  estilo (faixa cinza, texto preto). `aplicar_tema` embrulha o proc: a
+  paleta do sv-ttk roda uma vez só, chamada direto antes de existir
+  widget (esperar o evento não serve — a janela ainda não existe e ele não
+  chega), e depois só as cores do bot são reaplicadas. O TLabel também
+  ganhou layout com `Label.border` (sem ele o `background` não pinta nada);
+  (4) `ttk.Frame` ignora padding do estilo; (5) PrintWindow devolve preto
+  no fundo de janela com cor-chave.
+- `main.py` chama `preparar_dpi()` antes da primeira janela; medidas em
+  pixel por `px()`. O .spec leva `collect_data_files("sv_ttk")`.
+- Layout: páginas em duas colunas (uma só abaixo de ~1040 px na Compra e
+  ~1100 px na Venda), log embaixo e barra de ações fixa no rodapé. Campo
+  que o site escolhido NÃO usa **some** (`grid_remove`): `campos_do_site()`
+  na Compra e o `trace` dos sites na Venda decidem; na Venda, dados
+  pessoais e logins só aparecem com um site que os exige marcado
+  (`exige_login`, `exige_dados_pessoais`).
 
-Borda das caixas de texto: no Sun Valley o contorno do campo é #ebebeb e a
-caixa sumia no fundo claro. Estilo ttk não troca essa cor (o campo é uma
-imagem 20×20 fatiada), então `ui_tema._redesenhar_campos` REDESENHA no
-lugar as imagens `textbox-rest/hover/focus` (borda #8a8a8a, foco azul com
-linha de baixo grossa; 2 px a partir de 150% de escala) — Entry, Combobox e
-Spinbox usam as mesmas. A Combobox "só leitura" usava a imagem de BOTÃO
-(mexer nela mudaria os botões): ganhou o elemento `Campo.field` num layout
-próprio. `campo_texto()` (tk.Text) usa `CORES["borda_campo"]`.
-
-Passo a passo (`src/tutorial.py`, set/2026): cada tela (seletor, Compra,
+Passo a passo (`src/tutorial.py`, set/2026): cada página (Início, Compra,
 Venda) monta uma lista de `Passo(titulo, texto, alvos, opcional)` e um
-`Tutorial`. Abre sozinho só na primeira vez (na Venda, depois do login);
-"Concluir" ou "Pular" gravam em `%LOCALAPPDATA%\MarketplaceBot\
-tutorial.json` e o botão "?" do topo reabre. `alvos` é função (os widgets
-podem estar escondidos na montagem) e passo `opcional` sem alvo visível
-some da contagem. O Tk não tem camada semitransparente sobre os próprios
-widgets: o destaque são janelas sem borda — 4 faixas com `-alpha` em volta
-do furo (a união dos alvos, que continua clicável), 1 janela com
-`-transparentcolor` só com o contorno azul e o cartão do passo —,
+`Tutorial` (chaves `inicio`, `compra-v2`, `venda-v2` — o "-v2" fez o passo a
+passo reaparecer uma vez depois do redesenho). Abre sozinho só na primeira
+visita (na Venda, já conectada); "Concluir" ou "Pular" gravam em
+`%LOCALAPPDATA%\MarketplaceBot\tutorial.json`, trocar de página no meio
+fecha SEM marcar (`encerrar_sem_marcar`) e o botão "? Ajuda" do topo reabre.
+`alvos` é função (os widgets podem estar escondidos na montagem) e passo
+`opcional` sem alvo visível some da contagem. O Tk não tem camada
+semitransparente sobre os próprios widgets: o destaque são janelas sem
+borda — 4 faixas com `-alpha` em volta do furo (a união dos alvos, que
+continua clicável), 1 janela com `-transparentcolor` só com o contorno roxo
+e o cartão do passo —,
 reposicionadas a cada 150 ms (mover, redimensionar, rolar, minimizar). Ao
 mudar um campo ou botão de lugar ou de nome, atualizar o texto do passo.
 Para conferir: capturar cada janela por PrintWindow e compor (PrintWindow
