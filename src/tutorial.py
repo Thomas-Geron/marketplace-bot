@@ -48,6 +48,14 @@ def ja_visto(chave):
     return bool(_ler().get(chave))
 
 
+def rever_todos():
+    """Configurações: o passo a passo volta a abrir sozinho em cada página."""
+    try:
+        _arquivo().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def marcar_visto(chave):
     dados = _ler()
     dados[chave] = True

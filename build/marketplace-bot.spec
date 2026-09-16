@@ -36,6 +36,7 @@ a = Analysis(
                               "compra_webmotors", "compra_mobiauto",
                               "compra_napista", "compra_leiloes",
                               "interface_bot", "venda.interface_venda",
+                              "interface_extras", "execucoes",
                               "ui_imagens", "ui_animacao",
                               "ui_componentes", "ui_sites",
                               "ui_execucao", "ui_tabela", "ui_scroll"],

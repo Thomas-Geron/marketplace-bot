@@ -7,9 +7,18 @@ Supabase do usuário em sites de classificados). Distribuído por instalador
 com auto-update.
 
 Navegação (set/2026): janela ÚNICA (`interface_principal.App`) com lateral
-fixa — Início, Compra, Venda/Anúncio; "Anúncios salvos", "Histórico" e
-"Configurações" aparecem como "Em breve", sem tela falsa — e a página da
-vez. `interface_bot.montar(pai, app)` e `interface_venda.montar(pai, app)`
+fixa — Início, Compra, Venda/Anúncio e, separados, Anúncios salvos,
+Histórico e Configurações (`interface_extras.py`) — e a página da vez.
+Páginas de apoio: **Anúncios salvos** só LÊ o que o bot já guarda
+(`visitados.json` da Compra e `anunciados.json` da Venda; site dos
+registros antigos sai do domínio da URL) — não apaga nada, porque apagar
+destravaria o anti-spam; **Histórico** lista `execucoes.json`
+(`src/execucoes.py`: cada Rodar grava tipo, sites, veículos, modo,
+duração, contagem sucesso/aviso/erro por `nivel_da_linha` e o log inteiro,
+últimas 100; gravado no `terminou()` das páginas, com `rodada["parada"]`
+marcado pelo Parar); **Configurações** liga/desliga animações
+(`preferencias.json`, aplicada ao abrir a janela), apaga `tutorial.json`
+para o passo a passo voltar e abre a pasta de dados. `interface_bot.montar(pai, app)` e `interface_venda.montar(pai, app)`
 devolvem uma `Pagina` (`frame`, `ao_mostrar`, `encerrar`, `guia`): cada
 página é montada na primeira visita e fica viva, então trocar de página não
 perde o preenchido nem para um bot em execução; fechar a janela chama

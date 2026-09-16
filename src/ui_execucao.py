@@ -134,7 +134,8 @@ class LogExecucao(Cartao):
         self.clipboard_clear()
         self.clipboard_append(conteudo)
 
-    def adicionar(self, texto):
+    def adicionar(self, texto, hora=None):
+        """`hora` fixa o horário mostrado (log reaberto do histórico)."""
         if self._vazio:
             self.texto.delete("1.0", "end")
             self._vazio = False
@@ -151,7 +152,7 @@ class LogExecucao(Cartao):
                 self.texto.insert("end", limpo, ("titulo", "linha"))
                 continue
             glifo, _ = _NIVEIS[nivel]
-            self.texto.insert("end", time.strftime("%H:%M:%S") + "   ",
+            self.texto.insert("end", (hora or time.strftime("%H:%M:%S")) + "   ",
                               ("hora", "linha"))
             self.texto.insert("end", ui_tema.ICONES[glifo],
                               (f"ic_{nivel}", "linha"))

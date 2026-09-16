@@ -26,6 +26,7 @@ import tkinter as tk
 from tkinter import ttk
 
 import contato
+import execucoes
 import tutorial
 import ui_tema
 from paths import get_parametros_path, get_bot_command
@@ -513,6 +514,9 @@ def montar(pai, app):
     log.grid(row=2, column=0, sticky="we")
 
     # ----------------------------- funções -------------------------------
+    # a execução em curso, para o Histórico
+    rodada = {"execucao": None, "parada": False}
+
     def ler_saida(proc):
         for saida in proc.stdout:
             log_queue.put(saida)
@@ -526,6 +530,7 @@ def montar(pai, app):
                 terminou()
                 continue
             log.adicionar(item)
+            execucoes.linha(rodada["execucao"], item)
             if pede_prosseguir(item):
                 barra.definir_estado("aguardando")
             elif item.strip() == "Prosseguindo.":
@@ -537,6 +542,10 @@ def montar(pai, app):
         processo = None
         barra.definir_estado("parado")
         log.ao_vivo(False)
+        if rodada["execucao"] is not None:
+            execucoes.salvar(rodada["execucao"],
+                             "parada" if rodada["parada"] else "concluída")
+            rodada["execucao"] = None
         status.set("Execução encerrada. Confira o log.")
 
     def rodar():
@@ -613,6 +622,9 @@ def montar(pai, app):
             text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
+        rodada.update(parada=False, execucao=execucoes.nova(
+            "Compra", [CARTOES_SITES[s][0] for s in params["sites"]],
+            produtos, params["dry_run"]))
 
         modo = "modo teste" if params["dry_run"] else "ENVIO REAL"
         status.set(f"Bot iniciado ({modo}). Faça o login e clique em Prosseguir.")
@@ -634,6 +646,7 @@ def montar(pai, app):
         if processo is not None and processo.poll() is None:
             processo.terminate()
             processo = None
+            rodada["parada"] = True
             status.set("Bot parado.")
         else:
             status.set("O bot não está rodando.")

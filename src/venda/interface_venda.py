@@ -31,6 +31,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 import contato
+import execucoes
 import tutorial
 import ui_tema
 from paths import get_parametros_venda_path, get_venda_command
@@ -427,6 +428,9 @@ def montar(pai, app):
         row=5, column=0, sticky="w", pady=(px(12), 0))
     ent_senha_conta.bind("<Return>", entrar)
 
+    # a execução em curso, para o Histórico
+    rodada = {"execucao": None, "parada": False}
+
     def ler_saida(proc):
         for saida in proc.stdout:
             log_queue.put(saida)
@@ -440,6 +444,7 @@ def montar(pai, app):
                 terminou()
                 continue
             log.adicionar(item)
+            execucoes.linha(rodada["execucao"], item)
             if pede_prosseguir(item):
                 barra.definir_estado("aguardando")
             elif item.strip() == "Prosseguindo.":
@@ -452,6 +457,10 @@ def montar(pai, app):
         barra.definir_estado("parado")
         log.ao_vivo(False)
         preencher_lista()        # atualiza "Já anunciado em"
+        if rodada["execucao"] is not None:
+            execucoes.salvar(rodada["execucao"],
+                             "parada" if rodada["parada"] else "concluída")
+            rodada["execucao"] = None
         status.set("Execução encerrada. Confira o log.")
 
     def escolha_atual():
@@ -506,6 +515,10 @@ def montar(pai, app):
             text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
+        rodada.update(parada=False, execucao=execucoes.nova(
+            "Exclusão" if acao == "excluir" else "Venda",
+            [obter_site(s).nome for s in sites_sel],
+            [v["titulo"] for v in selecionados], params["dry_run"]))
         if acao == "excluir":
             status.set("Excluindo anúncios. Confira o login nos sites abertos "
                        "e clique em Prosseguir.")
@@ -579,6 +592,7 @@ def montar(pai, app):
         if processo is not None and processo.poll() is None:
             processo.terminate()
             processo = None
+            rodada["parada"] = True
             preencher_lista()  # atualiza os marcadores [já em: ...]
             status.set("Anunciador parado.")
         else:

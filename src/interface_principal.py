@@ -57,14 +57,12 @@ def _versao():
 class ItemLateral(tk.Canvas):
     """Item de navegação da lateral (selecionado = pílula roxa)."""
 
-    def __init__(self, pai, nome_icone, texto, comando=None, em_breve=False):
+    def __init__(self, pai, nome_icone, texto, comando):
         self.px = lambda v: ui_tema.px(pai, v)  # noqa: E731
         super().__init__(pai, width=self.px(208), height=self.px(40),
                          bg=C["lateral"], highlightthickness=0, borderwidth=0,
-                         cursor="arrow" if em_breve else "hand2",
-                         takefocus=0 if em_breve else 1)
-        self.nome_icone, self.texto = nome_icone, texto
-        self.comando, self.em_breve = comando, em_breve
+                         cursor="hand2", takefocus=1)
+        self.nome_icone, self.texto, self.comando = nome_icone, texto, comando
         self.selecionado = self.hover = False
         self._imgs = {}
         # hover e seleção se desfazem/aparecem em vez de trocar de uma vez
@@ -73,14 +71,12 @@ class ItemLateral(tk.Canvas):
         self._t_sel = ui_animacao.Transicao(self, "selecao",
                                             lambda _v: self.redesenhar(),
                                             duracao="media")
-        if not em_breve:
-            self.bind("<Button-1>", lambda _e: comando and comando())
-            self.bind("<space>", lambda _e: comando and comando())
-            self.bind("<Return>", lambda _e: comando and comando())
-            self.bind("<Enter>", lambda _e: self._sobre(True))
-            self.bind("<Leave>", lambda _e: self._sobre(False))
-            self.bind("<FocusIn>", lambda _e: self.redesenhar())
-            self.bind("<FocusOut>", lambda _e: self.redesenhar())
+        for evento in ("<Button-1>", "<space>", "<Return>"):
+            self.bind(evento, lambda _e: comando())
+        self.bind("<Enter>", lambda _e: self._sobre(True))
+        self.bind("<Leave>", lambda _e: self._sobre(False))
+        self.bind("<FocusIn>", lambda _e: self.redesenhar())
+        self.bind("<FocusOut>", lambda _e: self.redesenhar())
         self.redesenhar()
 
     def _sobre(self, sim):
@@ -107,25 +103,13 @@ class ItemLateral(tk.Canvas):
             C["primaria"], sel)
         if pilula != C["lateral"]:
             self.create_image(0, 0, anchor="nw", image=self._pilula(pilula))
-        base = C["lateral_suave"] if self.em_breve else C["lateral_texto"]
-        cor = ui_animacao.cor(base, "#ffffff", sel)
+        cor = ui_animacao.cor(C["lateral_texto"], "#ffffff", sel)
         self.create_text(self.px(16), meio, anchor="w", fill=cor,
                          text=ui_tema.ICONES[self.nome_icone],
                          font=(ui_tema.FONTE_ICONES, 12))
         self.create_text(self.px(46), meio, anchor="w", fill=cor, text=self.texto,
                          font=(ui_tema.FONTE_FORTE if sel >= 0.5
                                else ui_tema.FONTE, 10))
-        if self.em_breve:
-            fonte = (ui_tema.FONTE_FORTE, 7)
-            largura = tkfont.Font(root=self, font=fonte).measure("Em breve") \
-                + self.px(12)
-            chave = ("selo", largura)
-            if chave not in self._imgs:
-                self._imgs[chave] = ui_tema.guardar(self, ui_imagens.retangulo(
-                    self, largura, self.px(16), self.px(8), "#1e293b"))
-            x = int(self["width"]) - self.px(10) - largura // 2
-            self.create_image(x, meio, image=self._imgs[chave])
-            self.create_text(x, meio, text="Em breve", fill="#94a3b8", font=fonte)
 
 
 class Lateral(tk.Frame):
@@ -156,22 +140,17 @@ class Lateral(tk.Frame):
 
         # navegação
         self.itens = {}
-        for chave, nome_icone, texto in (("inicio", "inicio", "Início"),
-                                         ("compra", "compra", "Compra"),
-                                         ("venda", "venda", "Venda / Anúncio")):
-            item = ItemLateral(self, nome_icone, texto,
+        for chave, texto in (("inicio", "Início"), ("compra", "Compra"),
+                             ("venda", "Venda / Anúncio"),
+                             ("salvos", "Anúncios salvos"),
+                             ("historico", "Histórico"),
+                             ("config", "Configurações")):
+            item = ItemLateral(self, chave, texto,
                                comando=lambda c=chave: app.ir(c))
-            item.pack(padx=px(12), pady=(0, px(4)))
+            # respiro separa o trabalho (em cima) do apoio (embaixo)
+            item.pack(padx=px(12), pady=(px(20) if chave == "salvos" else 0,
+                                         px(4)))
             self.itens[chave] = item
-
-        tk.Label(self, text="EM BREVE", bg=C["lateral"], fg="#475569",
-                 font=(ui_tema.FONTE_FORTE, 8)).pack(anchor="w", padx=px(28),
-                                                     pady=(px(20), px(6)))
-        for nome_icone, texto in (("salvos", "Anúncios salvos"),
-                                  ("historico", "Histórico"),
-                                  ("config", "Configurações")):
-            ItemLateral(self, nome_icone, texto, em_breve=True).pack(
-                padx=px(12), pady=(0, px(4)))
 
         # conta (rodapé)
         rodape = tk.Frame(self, bg=C["lateral"])
@@ -439,10 +418,15 @@ class PaginaInicio:
             atalhos, "ajuda", "Ajuda", "Passo a passo desta tela",
             comando=lambda: self.guia.iniciar())
         self.atalhos = [
-            CartaoAtalho(atalhos, "salvos", "Anúncios salvos", "Em breve"),
+            CartaoAtalho(atalhos, "salvos", "Anúncios salvos",
+                         "Contatados e publicados",
+                         comando=lambda: app.ir("salvos")),
             CartaoAtalho(atalhos, "historico", "Histórico de execuções",
-                         "Em breve"),
-            CartaoAtalho(atalhos, "config", "Configurações", "Em breve"),
+                         "Resultado e log de cada Rodar",
+                         comando=lambda: app.ir("historico")),
+            CartaoAtalho(atalhos, "config", "Configurações",
+                         "Animações, passo a passo e dados",
+                         comando=lambda: app.ir("config")),
             self.atalho_ajuda,
         ]
         self._grade_atalhos = atalhos
@@ -549,6 +533,8 @@ class App:
         self.atual = None
         self.root.protocol("WM_DELETE_WINDOW", self.fechar)
 
+        import interface_extras
+        interface_extras.aplicar_preferencias()
         self._resultado_sessao = None
         threading.Thread(target=self._verificar_sessao, daemon=True).start()
         self.root.after(150, self._aguardar_sessao)
@@ -604,6 +590,12 @@ class App:
         if nome == "compra":
             import interface_bot
             return interface_bot.montar(self.area, self)
+        if nome in ("salvos", "historico", "config"):
+            import interface_extras
+            classe = {"salvos": interface_extras.PaginaSalvos,
+                      "historico": interface_extras.PaginaHistorico,
+                      "config": interface_extras.PaginaConfig}[nome]
+            return classe(self.area, self)
         from venda import interface_venda
         return interface_venda.montar(self.area, self)
 
@@ -622,7 +614,10 @@ class App:
         self._revelar(self.paginas[nome].frame)
         self.lateral.selecionar(nome)
         titulos = {"inicio": "MarketplaceBot", "compra": "MarketplaceBot — Compra",
-                   "venda": "MarketplaceBot — Venda / Anúncio"}
+                   "venda": "MarketplaceBot — Venda / Anúncio",
+                   "salvos": "MarketplaceBot — Anúncios salvos",
+                   "historico": "MarketplaceBot — Histórico",
+                   "config": "MarketplaceBot — Configurações"}
         self.root.title(titulos[nome])
         self.root.after_idle(self.paginas[nome].ao_mostrar)
 
