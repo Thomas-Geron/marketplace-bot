@@ -19,7 +19,7 @@ import re
 import unicodedata
 from datetime import datetime
 
-from coleta import carregar_visitados, salvar_visitados
+from coleta import carregar_visitados, salvar_visitados, sem_query
 
 
 def _chave(texto):
@@ -44,13 +44,15 @@ class Historico:
 
     def __init__(self):
         self.registros = carregar_visitados()
-        self.urls = {r.get("url") for r in self.registros if r.get("url")}
+        # comparado SEM os parâmetros do link: o rastreio muda a cada busca
+        self.urls = {sem_query(r.get("url")) for r in self.registros
+                     if r.get("url")}
         self.vendedores = {r.get("vendedor") for r in self.registros
                            if r.get("vendedor")}
 
     def ja_contatado(self, url=None, vendedor=None):
         """(bloqueado?, motivo legível)."""
-        if url and url in self.urls:
+        if url and sem_query(url) in self.urls:
             return True, "este anúncio já recebeu mensagem"
         if vendedor and vendedor in self.vendedores:
             return True, "você já enviou mensagem para esta pessoa"
@@ -58,11 +60,11 @@ class Historico:
 
     def novos(self, urls):
         """Filtra a lista de links, tirando os anúncios já contatados."""
-        return [url for url in urls if url not in self.urls]
+        return [url for url in urls if sem_query(url) not in self.urls]
 
     def registrar(self, url, site, produto, mensagem, cep="", vendedor=None):
         """Grava o contato. Idempotente por URL."""
-        if url in self.urls:
+        if sem_query(url) in self.urls:
             return
         registro = {
             "url": url,
@@ -76,7 +78,7 @@ class Historico:
             registro["vendedor"] = vendedor
             self.vendedores.add(vendedor)
         self.registros.append(registro)
-        self.urls.add(url)
+        self.urls.add(sem_query(url))
         salvar_visitados(self.registros)
 
 
@@ -132,3 +134,16 @@ def identificar_vendedor(pagina, site):
         except Exception:
             continue
     return None
+
+
+if __name__ == "__main__":
+    base = "https://www.facebook.com/marketplace/item/1906101283436045/"
+    carregar_visitados = lambda: [{"url": base + "?ref=search&tracking=browse_serp%3Aaaa"}]  # noqa: E731
+    salvar_visitados = lambda registros: None  # noqa: E731
+    h = Historico()
+    outra_busca = base + "?ref=search&tracking=browse_serp%3Abbb"
+    assert h.ja_contatado(outra_busca)[0]
+    assert h.novos([outra_busca, base.replace("1906", "7777")]) == [base.replace("1906", "7777")]
+    h.registrar(base.replace("1906", "7777") + "?tracking=x", "facebook", "gol", "oi")
+    assert h.ja_contatado(base.replace("1906", "7777") + "?tracking=y")[0]
+    print("ok")

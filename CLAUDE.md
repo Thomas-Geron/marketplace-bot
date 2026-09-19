@@ -331,11 +331,24 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
   em qualquer plataforma e em qualquer execução. Registros antigos, só
   com URL, continuam valendo. Quem não é identificado não bloqueia nada
   (o bot não inventa identidade).
-- **Ordem dos anúncios**: `coletar_links` ordena pela POSIÇÃO NA TELA
-  (linha por linha, com tolerância de 40px), não pela ordem do DOM — o
-  Facebook injeta os cards fora de ordem e o bot abria "o primeiro do
-  carregamento" em vez do primeiro visível. Sem posições legíveis, cai
-  de volta na ordem do DOM.
+- **Ordem dos anúncios** (set/2026, conferido ao vivo): o Marketplace
+  DESCARTA do DOM os cards que saem da tela — depois de rolar até o fim,
+  0 dos 6 primeiros existiam, e a lista do bot começava no meio. Agora
+  `coletar_links` começa no topo e anota cada card ENQUANTO rola, em
+  passos de ~0,8 tela, ordenando pela posição absoluta (linha de 40 px,
+  depois coluna); para quando já há `bastam` (= quantidade) anúncios
+  aprovados ainda não contatados — a lista inteira de "gol" tinha 932
+  cards e levaria minutos. `carregar_todos` saiu (parava com ~39 cards
+  montados). Conferido: os 6 do topo da tela são os 6 primeiros da lista.
+- **Link sem rastreio no histórico**: o Facebook põe
+  `tracking=browse_serp:<uuid>` aleatório em cada link, então o mesmo
+  anúncio mudava de URL a cada busca e a trava "já contatado" por URL
+  nunca pegava. `historico.py` compara por `coleta.sem_query(url)`.
+- **Modelo no título** (`marcas.palavra_do_modelo`/`cita_modelo`): o card
+  sem a palavra do modelo ("gol" em "vw gol g5"; palavra inteira, "golf"
+  não conta) sai da coleta, e o `h1` do anúncio aberto (o título) é
+  conferido de novo antes de enviar — a busca do Marketplace mistura
+  outros carros. Card do modelo sem ano no texto conta como veículo.
 - **Só veículos na Compra do Facebook** (set/2026, com aval do Thomas):
   o Marketplace NÃO tem busca por termo dentro de Veículos — conferido
   ao vivo: `category_id=546583916084032` (Veículos) junto com `query` é
@@ -374,7 +387,12 @@ num `<span>` dentro do `<button>`; use `:has(span...)` ou `:has-text()`).
 - **Limite de mensagens do Facebook** (`src/limites.py`): o Marketplace
   corta o envio depois de algumas mensagens e mostra o aviso na tela
   ("atingiu o limite", "ação bloqueada", "temporariamente bloqueado",
-  "rápido demais"…). `detectar_limite` reconhece o aviso, o bot PARA no
+  "rápido demais"…) numa CAIXA. `detectar_limite(pagina, ignorar=
+  mensagem, espera=4)` confere por até 4 s depois do envio; dentro de
+  caixa ([role=dialog]/[role=alert]) qualquer "limite/limit", "não pode
+  enviar", "tente novamente mais tarde" ou bloqueio conta (a lista exata
+  deixava escapar "atingiu SEU limite…"), ignorando o texto da própria
+  mensagem; na página inteira só as frases específicas. O bot PARA no
   Facebook (as outras fontes seguem) e grava a tela em
   `debug/facebook-compra` — é de lá que sai o texto exato para ampliar a
   lista. O bot não tenta contornar, não espera em loop e não troca de
@@ -549,9 +567,11 @@ Ordem combinada com o Thomas, a partir das ideias das duas anotações:
 
 - Não alterar a lógica do bot de Compra no Facebook (filtros/coleta/
   mensagem/timing em run.py, filtros.py, coleta.py, mensagem.py e
-  config.py). Três exceções pedidas pelo Thomas: a coleta ordena por
-  posição na tela, a coleta descarta o que não é veículo
-  (`coleta.eh_card_de_veiculo`) e o laço para quando
+  config.py). Exceções pedidas pelo Thomas: a coleta anota os cards do
+  topo ao fim enquanto rola (ordem da tela), descarta o que não é veículo
+  (`coleta.eh_card_de_veiculo`) e o que não fala no modelo
+  (`marcas.cita_modelo`, também no título antes de enviar), o histórico
+  compara links sem os parâmetros de rastreio, e o laço para quando
   `limites.detectar_limite` reconhece o aviso de limite de mensagens do
   Facebook. A OLX vive em `src/compra_olx.py` (fluxo paralelo) e pode
   evoluir livremente.

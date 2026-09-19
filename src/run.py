@@ -9,8 +9,9 @@ import contato
 from parametros import Parametros, so_numeros, validar
 from navegador import abrir_navegador
 from filtros import pesquisar_produto, aplicar_localizacao, aplicar_preco
-from coleta import carregar_todos, calcular_alvo, coletar_links
+from coleta import calcular_alvo, coletar_links, titulo_do_anuncio
 from historico import Historico, identificar_vendedor
+from marcas import cita_modelo, palavra_do_modelo
 from limites import detectar_limite
 from mensagem import enviar_mensagem
 from sinal import esperar_prosseguir
@@ -176,11 +177,17 @@ def _executar_site(site, p):
             aplicar_preco(pagina, p.preco_min, p.preco_max)
             pause(3)
 
-            carregar_todos(pagina)
+            # rola do topo ao fim anotando os cards na ordem da tela (o
+            # Marketplace descarta os do topo quando a lista rola)
+            links = coletar_links(pagina, produto=produto,
+                                  bastam=p.quantidade,
+                                  pular=historico.urls)
 
-            links = coletar_links(pagina)
-
+            antes = len(links)
             links = historico.novos(links)
+            if antes > len(links):
+                print(f"  {antes - len(links)} anúncio(s) já receberam mensagem "
+                      "antes e foram pulados")
 
             total = len(links)
 
@@ -189,17 +196,6 @@ def _executar_site(site, p):
 
             print(f"Encontrados {total} posts. Vou processar {alvo}.")
             pause(2)
-            print("Garantindo início da lista...")
-
-            # tenta resetar scroll principal
-            pagina.evaluate("window.scrollTo(0, 0)")
-            pagina.wait_for_timeout(1000)
-
-            # força scroll extremo para cima várias vezes (UI tipo Facebook precisa disso)
-            for _ in range(3):
-                pagina.mouse.wheel(0, -5000)
-                pagina.wait_for_timeout(800)
-
 
             for i, link in enumerate(links[:alvo]):
 
@@ -219,6 +215,14 @@ def _executar_site(site, p):
                     print(f"    [pulado] {motivo}")
                     continue
 
+                # o título tem de falar no modelo pedido: a busca do
+                # Marketplace mistura outros carros (a BMW no meio dos Gols)
+                titulo = titulo_do_anuncio(pagina)
+                if not cita_modelo(titulo, produto):
+                    print(f"    [pulado] o título não fala em "
+                          f"'{palavra_do_modelo(produto)}': {titulo[:70]}")
+                    continue
+
                 # peneira por palavras: o que o veículo da vez exige e o
                 # que a busca inteira recusa
                 serve, motivo = p.anuncio_serve(texto_da_pagina(pagina))
@@ -231,7 +235,8 @@ def _executar_site(site, p):
                 # o Facebook corta o envio depois de algumas mensagens e
                 # avisa na tela; daí em diante toda tentativa é perdida —
                 # o bot para no Marketplace em vez de insistir
-                aviso = detectar_limite(pagina)
+                # a caixa do aviso aparece depois do clique: espera um pouco
+                aviso = detectar_limite(pagina, ignorar=p.mensagem, espera=4)
                 if aviso:
                     print("")
                     print("O Facebook limitou o envio de mensagens desta "

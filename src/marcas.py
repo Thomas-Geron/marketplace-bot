@@ -181,3 +181,38 @@ def aviso(produto):
         return (f"não reconheci '{produto}': a busca vai tratar como MARCA — "
                 "se for modelo, escreva a marca junto (ex.: 'fiat palio')")
     return None
+
+
+def palavra_do_modelo(produto):
+    """A palavra que o anúncio PRECISA ter: o modelo ('gol' em 'vw gol g5',
+    'mobi' em 'fiat mobi'). Só marca escrita ('fiat') → a própria marca."""
+    marca, modelo, como = separar(produto)
+    if como in ("marca", "modelo") and modelo:
+        return modelo.split("-")[0]
+    tokens = _tokens(produto)
+    return tokens[0] if tokens else None
+
+
+def cita_modelo(texto, produto):
+    """O título/texto do anúncio tem a palavra do modelo, como palavra
+    inteira ('gol' não casa com 'golf')? Sem texto lido → True: não ler não
+    é motivo para descartar."""
+    palavra = palavra_do_modelo(produto)
+    tokens = _tokens(texto)
+    if not palavra or not tokens:
+        return True
+    # 'hrv' digitado casa com 'HR-V' no anúncio
+    juntos = {a + b for a, b in zip(tokens, tokens[1:])}
+    return palavra in tokens or palavra in juntos
+
+
+if __name__ == "__main__":
+    assert palavra_do_modelo("vw gol g5") == "gol"
+    assert palavra_do_modelo("fiat mobi") == "mobi"
+    assert palavra_do_modelo("fiat") == "fiat"
+    assert cita_modelo("2000 Volkswagen Gol Bom", "gol")
+    assert not cita_modelo("2015 BMW 320i", "gol")
+    assert not cita_modelo("Volkswagen Golf 2010", "gol")
+    assert cita_modelo("Honda HR-V EXL", "hrv")
+    assert cita_modelo("", "gol")
+    print("ok")
