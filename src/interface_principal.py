@@ -23,6 +23,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+import termo
 import tutorial
 import ui_animacao
 import ui_imagens
@@ -517,8 +518,20 @@ class App:
         ui_tema.aplicar_tema(self.root)
         ui_tema.geometria(self.root, 1440, 900, minimo=(1000, 620),
                           centralizar=True)
+        # Termo de riscos ANTES de qualquer página: sem aceite, o app fecha
+        # (iniciar() confere `recusou`) e não há como chegar ao Rodar.
+        self.recusou = False
+        self.root.withdraw()
+        self.termo = termo.carregar()
+        if not termo.aceito(self.termo):
+            import ui_termo
+            if not ui_termo.exigir_aceite(self.root, self.termo, _versao()):
+                self.recusou = True
+                self.root.destroy()
+                return
+        self.root.deiconify()
         self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
 
         from venda.banco import BancoVeiculos
         self.banco = BancoVeiculos()
@@ -526,9 +539,10 @@ class App:
         self._ao_verificar = []
 
         self.lateral = Lateral(self.root, self)
-        self.lateral.grid(row=0, column=0, sticky="ns")
+        self.lateral.grid(row=0, column=0, rowspan=2, sticky="ns")
+        self._montar_aviso_riscos()
         self.area = tk.Frame(self.root, bg=C["fundo"])
-        self.area.grid(row=0, column=1, sticky="nsew")
+        self.area.grid(row=1, column=1, sticky="nsew")
         self.paginas = {}
         self.atual = None
         self.root.protocol("WM_DELETE_WINDOW", self.fechar)
@@ -539,6 +553,29 @@ class App:
         threading.Thread(target=self._verificar_sessao, daemon=True).start()
         self.root.after(150, self._aguardar_sessao)
         self.ir(pagina_inicial)
+
+    def _montar_aviso_riscos(self):
+        """Faixa fixa no topo de todas as páginas: não fecha, não some."""
+        self.aviso_riscos = Banner(
+            self.root, tipo="risco", fechavel=False, titulo="Uso por sua conta e risco.",
+            texto="O MarketplaceBot não é oficial: automatizar o Facebook, a OLX e os outros "
+                  "sites contraria as regras deles e pode bloquear suas contas. Envio em massa "
+                  "gera denúncia de spam.")
+        m = ui_tema.px(self.root, 12)
+        self.aviso_riscos.grid(row=0, column=1, sticky="we", padx=m, pady=(m, 0))
+        fundo = Banner.TIPOS["risco"][0]
+        link = tk.Label(self.aviso_riscos, text="Ver o termo", bg=fundo, fg="#7f1d1d",
+                        cursor="hand2", font=(ui_tema.FONTE, 9, "underline"))
+        link.grid(row=0, column=2, sticky="n", padx=(ui_tema.px(self.root, 10), 0))
+        # o link ocupa mais que o "fechar" para o qual o Banner reserva espaço:
+        # sem isto o texto era cortado na borda em vez de quebrar a linha
+        self.aviso_riscos.bind("<Configure>", lambda e: self.aviso_riscos.rotulo.configure(
+            wraplength=max(200, e.width - ui_tema.px(self.root, 190))), add="+")
+
+        def ver(_e=None):
+            import ui_termo
+            ui_termo.mostrar(self.root, self.termo)
+        link.bind("<Button-1>", ver)
 
     # ------------------------------------------------------ sessão
     def _verificar_sessao(self):
@@ -653,4 +690,5 @@ class App:
 def iniciar(pagina="inicio"):
     """Abre a janela do app na página pedida e roda até fechar."""
     app = App(pagina)
-    app.root.mainloop()
+    if not app.recusou:
+        app.root.mainloop()

@@ -361,6 +361,8 @@ class Banner(ttk.Frame):
         "dica": ("#f5f3ff", "#ddd6fe", C["primaria"], "lampada", "#3b0764"),
         "info": ("#eff6ff", "#bfdbfe", C["secundaria"], "info", "#1e3a8a"),
         "aviso": ("#fffbeb", "#fde68a", C["aviso"], "aviso", "#78350f"),
+        # riscos do uso: fica fixa no topo (fechavel=False)
+        "risco": ("#fef2f2", "#fca5a5", C["erro"], "aviso", "#7f1d1d"),
     }
 
     def __init__(self, pai, texto, tipo="dica", titulo=None, fechavel=True,

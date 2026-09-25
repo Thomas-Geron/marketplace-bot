@@ -36,6 +36,8 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+; Termo de riscos: só segue com "Eu aceito" (texto do Giro, /api/bot/termo.txt)
+LicenseFile=..\assets\TERMO.txt
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 ; update in-place: fecha o app aberto antes de copiar e reabre ao final

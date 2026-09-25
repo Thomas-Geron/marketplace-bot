@@ -122,6 +122,29 @@ mudar um campo ou botão de lugar ou de nome, atualizar o texto do passo.
 Para conferir: capturar cada janela por PrintWindow e compor (PrintWindow
 devolve PRETO no fundo da janela com cor-chave).
 
+## Termo de riscos (set/2026, v1.13.0)
+
+O uso depende de aceitar o **termo de riscos dos bots de mensagens** — o MESMO
+do site do Thomas (Giro), que é a fonte única do texto:
+`GET https://revendedora-web.onrender.com/api/bot/termo` (JSON) e
+`/api/bot/termo.txt`. Três portas:
+- **Instalador**: `LicenseFile=..\assets\TERMO.txt` (só segue com "Eu aceito").
+- **Janela**: `interface_principal.App` chama `termo.carregar()` e, se a versão
+  não foi aceita, `ui_termo.exigir_aceite` ANTES de montar qualquer página, com
+  a principal escondida; recusar fecha o app (`App.recusou`, conferido em
+  `iniciar()`). Cada declaração é uma caixa + nome completo (duas palavras).
+  Aceite em `%LOCALAPPDATA%\MarketplaceBot\termo_aceite.json` (versão, nome,
+  data, computador, usuário do Windows, versão do app).
+- **Site**: o download do MarketplaceBot na página Bot do Giro só aparece
+  depois do aceite da conta.
+Sem internet (ou com o site dormindo), vale a cópia `assets/termo.json`.
+Aviso fixo: `Banner(tipo="risco", fechavel=False)` no topo de todas as páginas
+(linha 0 da coluna de conteúdo; a lateral ocupa as duas linhas), com o link
+"Ver o termo" (`ui_termo.mostrar`). **Não esconder nem tornar fechável.**
+Mudou o termo no Giro (lá sobe a VERSAO)? Regerar `assets/termo.json` e
+`assets/TERMO.txt` (UTF-8 com BOM) a partir do endpoint e publicar uma versão.
+`python checar_termo.py` confere tudo com pasta de dados temporária e sem rede.
+
 ## Distribuição e release
 
 - PyInstaller **onedir** (`build/marketplace-bot.spec`) + Inno Setup

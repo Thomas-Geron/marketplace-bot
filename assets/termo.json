@@ -1,0 +1,114 @@
+{
+ "versao": "2026-09-25",
+ "versao_legivel": "25/09/2026",
+ "titulo": "Termo de ciência de riscos, assunção de responsabilidade e isenção — bots de mensagens",
+ "riscos": [
+  {
+   "titulo": "Seu número pode ser bloqueado pelo WhatsApp",
+   "texto": "Automatizar o WhatsApp contraria os Termos de Serviço dele. O bloqueio pode ser definitivo, sem aviso e sem recurso: você perde o número, as conversas e os contatos."
+  },
+  {
+   "titulo": "Suas contas no Facebook e nos sites de anúncio podem ser bloqueadas",
+   "texto": "O MarketplaceBot automatiza o Facebook (Marketplace e Páginas), a OLX, a Webmotors e outros sites, o que contraria as regras deles. A conta pode ser restringida ou excluída, e junto vão os anúncios, as conversas e o histórico."
+  },
+  {
+   "titulo": "Você pode perder clientes e vendas",
+   "texto": "Se o número for bloqueado ou o bot falhar, mensagens deixam de chegar ou de ser respondidas, sem que ninguém perceba na hora."
+  },
+  {
+   "titulo": "O bot pode falhar ou errar",
+   "texto": "O WhatsApp Web e os sites de anúncio mudam sem aviso. O bot pode parar de ler, ler errado, atrasar, repetir ou deixar de enviar mensagens, ou preencher anúncios com dados errados."
+  },
+  {
+   "titulo": "O cliente vê a mensagem como lida",
+   "texto": "Para ler, o bot abre a conversa: o cliente vê os tracinhos azuis antes de alguém responder."
+  },
+  {
+   "titulo": "Conversas pessoais podem ir para o Giro",
+   "texto": "O bot leva ao Giro as conversas individuais não lidas do número conectado. Com um número pessoal, suas conversas pessoais aparecem no painel da loja."
+  },
+  {
+   "titulo": "O computador passa a dar acesso ao WhatsApp da loja",
+   "texto": "A sessão fica salva no computador. Quem usar esse computador, ou um vírus nele, pode ler e mandar mensagens pelo número."
+  },
+  {
+   "titulo": "Envio em massa é o que mais leva a bloqueio",
+   "texto": "Disparar mensagens para muita gente (MarketplaceBot) gera denúncias de spam e pode violar a Lei Geral de Proteção de Dados (LGPD)."
+  },
+  {
+   "titulo": "Não é oficial e pode deixar de existir",
+   "texto": "Os bots não têm vínculo nem suporte do WhatsApp, da Meta ou dos portais, e podem parar de funcionar ou ser descontinuados a qualquer momento."
+  }
+ ],
+ "secoes": [
+  {
+   "titulo": "1. O que são os bots",
+   "paragrafos": [
+    "O Giro Bot e o MarketplaceBot (\"os bots\") são programas que rodam no seu computador e controlam o WhatsApp Web, o Facebook e sites de anúncio pelo navegador, como se fosse uma pessoa clicando. Eles não usam API oficial, não são produtos do WhatsApp, da Meta ou de qualquer portal, e não têm autorização, parceria ou suporte dessas empresas.",
+    "O uso é opcional. O Giro oferece caminhos oficiais — WhatsApp oficial (API da Meta), chat da OLX e Mercado Livre — que não dependem dos bots e não têm os riscos abaixo."
+   ]
+  },
+  {
+   "titulo": "2. Os riscos",
+   "paragrafos": [
+    "Seu número pode ser bloqueado pelo WhatsApp. Automatizar o WhatsApp contraria os Termos de Serviço dele. O bloqueio pode ser definitivo, sem aviso e sem recurso: você perde o número, as conversas e os contatos.",
+    "Suas contas no Facebook e nos sites de anúncio podem ser bloqueadas. O MarketplaceBot automatiza o Facebook (Marketplace e Páginas), a OLX, a Webmotors e outros sites, o que contraria as regras deles. A conta pode ser restringida ou excluída, e junto vão os anúncios, as conversas e o histórico.",
+    "Você pode perder clientes e vendas. Se o número for bloqueado ou o bot falhar, mensagens deixam de chegar ou de ser respondidas, sem que ninguém perceba na hora.",
+    "O bot pode falhar ou errar. O WhatsApp Web e os sites de anúncio mudam sem aviso. O bot pode parar de ler, ler errado, atrasar, repetir ou deixar de enviar mensagens, ou preencher anúncios com dados errados.",
+    "O cliente vê a mensagem como lida. Para ler, o bot abre a conversa: o cliente vê os tracinhos azuis antes de alguém responder.",
+    "Conversas pessoais podem ir para o Giro. O bot leva ao Giro as conversas individuais não lidas do número conectado. Com um número pessoal, suas conversas pessoais aparecem no painel da loja.",
+    "O computador passa a dar acesso ao WhatsApp da loja. A sessão fica salva no computador. Quem usar esse computador, ou um vírus nele, pode ler e mandar mensagens pelo número.",
+    "Envio em massa é o que mais leva a bloqueio. Disparar mensagens para muita gente (MarketplaceBot) gera denúncias de spam e pode violar a Lei Geral de Proteção de Dados (LGPD).",
+    "Não é oficial e pode deixar de existir. Os bots não têm vínculo nem suporte do WhatsApp, da Meta ou dos portais, e podem parar de funcionar ou ser descontinuados a qualquer momento."
+   ]
+  },
+  {
+   "titulo": "3. Sua decisão e sua responsabilidade",
+   "paragrafos": [
+    "Você declara que leu este termo, entendeu os riscos acima e decidiu, por conta própria e sem nenhuma pressão, usar os bots mesmo assim.",
+    "Você assume integral e exclusivamente os riscos e as consequências do uso, entre eles: bloqueio temporário ou definitivo de números e contas; perda de conversas, contatos, histórico, clientes, vendas, oportunidades e lucros; mensagens enviadas, lidas, perdidas, atrasadas, trocadas ou duplicadas; e reclamações de clientes, contatos ou terceiros.",
+    "Você é o único responsável pelo número de telefone e pelas contas conectadas, pelo conteúdo das mensagens enviadas pelos bots ou pelo painel, pelos anúncios que eles publicarem, pela segurança do computador onde eles rodam e por cumprir os Termos de Serviço do WhatsApp e dos portais."
+   ]
+  },
+  {
+   "titulo": "4. Dados pessoais (LGPD)",
+   "paragrafos": [
+    "Você é o controlador dos dados das pessoas com quem conversa: cabe a você ter base legal para tratar esses dados e para mandar mensagens a elas.",
+    "É proibido usar os bots para mandar mensagens a quem não pediu (spam), para listas compradas ou obtidas sem consentimento, ou para qualquer fim ilícito."
+   ]
+  },
+  {
+   "titulo": "5. Isenção e limite de responsabilidade",
+   "paragrafos": [
+    "Na máxima extensão permitida pela lei, o Giro e seus responsáveis não respondem por danos diretos ou indiretos decorrentes do uso dos bots, inclusive os descritos neste termo, nem por atos do WhatsApp, da Meta, dos portais ou de terceiros, como bloqueios, mudanças nos sites e indisponibilidades.",
+    "Os bots são fornecidos no estado em que se encontram, sem garantia de funcionamento contínuo, de compatibilidade com versões futuras do WhatsApp Web ou dos portais, nem de qualquer resultado comercial.",
+    "Este termo não afasta a responsabilidade que a lei não permite afastar."
+   ]
+  },
+  {
+   "titulo": "6. Ressarcimento",
+   "paragrafos": [
+    "Se o Giro ou seus responsáveis forem acionados por clientes, contatos, WhatsApp, Meta, portais ou autoridades por causa do seu uso dos bots, você se compromete a ressarcir os valores que eles vierem a pagar, inclusive custas e honorários."
+   ]
+  },
+  {
+   "titulo": "7. Suspensão e mudanças",
+   "paragrafos": [
+    "O Giro pode suspender ou encerrar os bots, ou o acesso de uma loja a eles, a qualquer momento, inclusive diante de indício de uso abusivo.",
+    "Se este termo mudar, o uso dos bots fica bloqueado até você aceitar a nova versão."
+   ]
+  },
+  {
+   "titulo": "8. Registro do aceite",
+   "paragrafos": [
+    "O aceite fica registrado com o nome que você digitar, a conta da loja, a data e a hora, o endereço de IP, o navegador ou aplicativo usado e a versão deste termo."
+   ]
+  }
+ ],
+ "declaracoes": [
+  "Li este termo inteiro e entendi cada um dos riscos descritos.",
+  "Sei que os bots não são oficiais e que automatizar o WhatsApp, o Facebook e os sites de anúncio contraria as regras deles, podendo levar ao bloqueio definitivo do número e das contas.",
+  "Decido usar os bots por minha conta e assumo sozinho(a) todos os riscos e prejuízos descritos, isentando o Giro e seus responsáveis, nos termos deste documento.",
+  "Sou responsável pelo número conectado e pelos dados das pessoas com quem converso (LGPD), e não vou enviar mensagens a quem não pediu."
+ ]
+}

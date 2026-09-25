@@ -8,6 +8,15 @@ anúncios e envia a mensagem — com modo *dry-run* para testar sem enviar nada.
 Distribuído como instalador Windows (`MarketplaceBot-Setup.exe`) com
 **atualização automática** via GitHub Releases.
 
+## Termo de riscos (obrigatório)
+
+O MarketplaceBot **não é oficial**: automatizar o Facebook, a OLX e os outros
+sites contraria as regras deles e pode bloquear as contas; envio em massa gera
+denúncia de spam. Por isso o instalador e a própria janela exigem o aceite do
+**termo de riscos** (o mesmo do site do Giro) antes de qualquer uso, e o aviso
+de riscos fica fixo no topo de todas as páginas. Versão nova do termo = aceitar
+de novo. Detalhes em `CLAUDE.md`.
+
 ## Onde ficam os dados do usuário
 
 Tudo em `%LOCALAPPDATA%\MarketplaceBot\` — **nunca** na pasta de instalação:
@@ -21,6 +30,7 @@ Tudo em `%LOCALAPPDATA%\MarketplaceBot\` — **nunca** na pasta de instalação:
 | `sessao_venda.json` | sessão salva da conta (Supabase) do módulo de venda |
 | `perfil_bot/` | perfil do Chrome com o login salvo |
 | `update.log` | log do sistema de atualização |
+| `termo_aceite.json` | aceite do termo de riscos (versão, nome, data) |
 
 Instalar, atualizar ou desinstalar o programa não toca nesses arquivos.
 
