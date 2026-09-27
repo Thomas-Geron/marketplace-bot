@@ -14,7 +14,7 @@ from historico import Historico, identificar_vendedor
 from marcas import cita_modelo, palavra_do_modelo
 from limites import detectar_limite
 from mensagem import enviar_mensagem
-from sinal import esperar_prosseguir
+from sinal import esperar_prosseguir, limpar_parada, parada_pedida
 from venda.sites.base import dump_diagnostico, texto_da_pagina
 from paths import get_parametros_path
 
@@ -148,6 +148,7 @@ def _executar_site(site, p):
         pause(3)
 
         historico = Historico()
+        limpar_parada()
 
         for posicao, produto in enumerate(fila, start=1):
             # cada veículo tem a SUA margem de preço
@@ -198,6 +199,12 @@ def _executar_site(site, p):
             pause(2)
 
             for i, link in enumerate(links[:alvo]):
+                # a interface pede parada (ex.: o Giro recusou a licença):
+                # sai entre um anúncio e outro, nunca no meio de um
+                if parada_pedida():
+                    print("[parado] pedido de parada da interface.")
+                    contexto.close()
+                    return
 
                 print(f"[{i+1}/{alvo}] abrindo post...")
 

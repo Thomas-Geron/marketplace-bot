@@ -17,6 +17,20 @@ denúncia de spam. Por isso o instalador e a própria janela exigem o aceite do
 de riscos fica fixo no topo de todas as páginas. Versão nova do termo = aceitar
 de novo. Detalhes em `CLAUDE.md`.
 
+## Licença: plano + pagamento (obrigatório)
+
+O MarketplaceBot só funciona para loja com um **plano que inclua o bot** (hoje,
+o plano **Revenda**) e com o **pagamento em dia** — quem decide é o Giro, a cada
+abertura e a cada execução. Nada de licença fica guardado no computador: **sem
+internet o bot não inicia**.
+
+Depois de instalar ou atualizar, **cole o token da sua loja**: você o gera no
+site do Giro, em **Bot > "Token dos bots"** (é o mesmo token do Giro Bot). A
+janela pede o token na primeira abertura, e ele também pode ser trocado em
+**Configurações > Licença**. Pagamento vencido dentro da carência: o bot roda
+com a faixa "Pagamento vencido" no topo. Recusado no meio de uma execução, o bot
+termina o item atual e para.
+
 ## Onde ficam os dados do usuário
 
 Tudo em `%LOCALAPPDATA%\MarketplaceBot\` — **nunca** na pasta de instalação:
@@ -31,6 +45,7 @@ Tudo em `%LOCALAPPDATA%\MarketplaceBot\` — **nunca** na pasta de instalação:
 | `perfil_bot/` | perfil do Chrome com o login salvo |
 | `update.log` | log do sistema de atualização |
 | `termo_aceite.json` | aceite do termo de riscos (versão, nome, data) |
+| `licenca.json` | token da loja para conferir a licença no Giro (só o token) |
 
 Instalar, atualizar ou desinstalar o programa não toca nesses arquivos.
 

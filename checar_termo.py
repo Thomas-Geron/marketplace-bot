@@ -14,11 +14,15 @@ import requests  # noqa: E402
 
 import interface_principal  # noqa: E402
 import termo  # noqa: E402
+import ui_licenca  # noqa: E402
 import ui_termo  # noqa: E402
 from paths import get_data_dir  # noqa: E402
 
 falhas = []
 COPIA = termo._copia_local()
+# aqui o assunto é o termo: a licença entra liberada (tem teste próprio em
+# checar_licenca.py)
+ui_licenca.exigir = lambda root, versao="": {"liberado": True, "situacao": "ativa"}
 
 
 def checar(cond, msg):

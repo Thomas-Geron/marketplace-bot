@@ -145,6 +145,33 @@ Mudou o termo no Giro (lá sobe a VERSAO)? Regerar `assets/termo.json` e
 `assets/TERMO.txt` (UTF-8 com BOM) a partir do endpoint e publicar uma versão.
 `python checar_termo.py` confere tudo com pasta de dados temporária e sem rede.
 
+## Licença por plano (set/2026, v1.14.0)
+
+Regra de produto de TODO bot do Giro: só funciona para loja com plano que
+INCLUA o bot e com pagamento em dia. O MarketplaceBot é do plano **Revenda**.
+Quem decide é o Giro (`src/licenca.py`):
+`GET {GIRO_URL}/api/bot/licenca?bot=marketplace_bot` com
+`Authorization: Bearer <token da loja>` (mesmo token do Giro Bot, gerado no
+site em Bot > "Token dos bots"; `GIRO_URL` vem de `src/termo.py`).
+- 200 `liberado: true` → roda; `situacao == "atrasada"` é vencido na carência:
+  roda com faixa "Pagamento vencido" no topo (`App._montar_aviso_riscos`).
+- 403 → `Bloqueado` com `motivo` (`plano`/`pagamento`/`termo`); o texto do
+  campo `erro` é mostrado COMO VEIO, sem reescrever. 401 → `motivo="token"`.
+- Sem resposta (sem internet, Giro dormindo) → `SemResposta` e o bot **não
+  inicia**. **Não guardar licença no computador**: em `licenca.json` fica só o
+  token (o teste confere isso).
+Pontos de entrada, e só eles (Compra/Venda seguem intocadas):
+`ui_licenca.exigir` logo depois do termo, antes de montar qualquer página
+(recusar fecha, via `App.recusou`); `licenca.consultar()` no `rodar()` das duas
+páginas; e `licenca.Vigia` conferindo a cada `verificar_a_cada_minutos`
+enquanto roda — recusa chama `pedir_parada()` (`src/sinal.py` →
+`parar.signal`), que `run.py` e `venda/anunciador.py` leem ENTRE itens, para
+nunca deixar um anúncio pela metade (força o fim em 2 min se o item travar);
+falha de rede tenta de novo por 10 min antes de parar.
+`python checar_licenca.py` confere tudo com servidor falso, pasta de dados
+temporária e sem rede (liberado, plano, pagamento, termo, 401, sem internet,
+recusa no meio, atrasada).
+
 ## Distribuição e release
 
 - PyInstaller **onedir** (`build/marketplace-bot.spec`) + Inno Setup

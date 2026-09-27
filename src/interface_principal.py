@@ -23,7 +23,9 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+import licenca
 import termo
+import ui_licenca
 import tutorial
 import ui_animacao
 import ui_imagens
@@ -529,6 +531,14 @@ class App:
                 self.recusou = True
                 self.root.destroy()
                 return
+        # Licença: plano que inclua o bot e pagamento em dia, conferidos
+        # no Giro. Sem conferir (ou recusado), o app não monta página nenhuma.
+        self.licenca = ui_licenca.exigir(self.root, _versao())
+        if self.licenca is None:
+            self.recusou = True
+            self.root.destroy()
+            return
+
         self.root.deiconify()
         self.root.columnconfigure(1, weight=1)
         self.root.rowconfigure(1, weight=1)
@@ -555,14 +565,22 @@ class App:
         self.ir(pagina_inicial)
 
     def _montar_aviso_riscos(self):
-        """Faixa fixa no topo de todas as páginas: não fecha, não some."""
+        """Faixas fixas no topo de todas as páginas: não fecham, não somem."""
+        m = ui_tema.px(self.root, 12)
+        self.topo = tk.Frame(self.root, bg=C["fundo"])
+        self.topo.grid(row=0, column=1, sticky="we", padx=m, pady=(m, 0))
+        self.topo.columnconfigure(0, weight=1)
+        if licenca.atrasada(self.licenca):
+            Banner(self.topo, tipo="aviso", fechavel=False,
+                   titulo="Pagamento vencido —",
+                   texto="regularize no Giro para o bot não bloquear.").grid(
+                row=0, column=0, sticky="we", pady=(0, m // 2))
         self.aviso_riscos = Banner(
-            self.root, tipo="risco", fechavel=False, titulo="Uso por sua conta e risco.",
+            self.topo, tipo="risco", fechavel=False, titulo="Uso por sua conta e risco.",
             texto="O MarketplaceBot não é oficial: automatizar o Facebook, a OLX e os outros "
                   "sites contraria as regras deles e pode bloquear suas contas. Envio em massa "
                   "gera denúncia de spam.")
-        m = ui_tema.px(self.root, 12)
-        self.aviso_riscos.grid(row=0, column=1, sticky="we", padx=m, pady=(m, 0))
+        self.aviso_riscos.grid(row=1, column=0, sticky="we")
         fundo = Banner.TIPOS["risco"][0]
         link = tk.Label(self.aviso_riscos, text="Ver o termo", bg=fundo, fg="#7f1d1d",
                         cursor="hand2", font=(ui_tema.FONTE, 9, "underline"))

@@ -30,7 +30,9 @@ import execucoes
 import tutorial
 import ui_tema
 from paths import get_parametros_path, get_bot_command
-from sinal import dar_sinal, limpar_sinal
+import licenca
+from sinal import (dar_sinal, limpar_parada, limpar_sinal,
+                   pedir_parada)
 from ui_componentes import Banner, CabecalhoPagina, Cartao, placeholder
 from ui_execucao import BarraAcoes, LogExecucao, ResumoExecucao, pede_prosseguir
 from ui_scroll import criar_area_rolavel
@@ -537,9 +539,22 @@ def montar(pai, app):
                 barra.definir_estado("rodando")
         agendado["log"] = root.after(100, drenar_log)
 
+    def licenca_recusada(motivo):
+        """O Giro recusou no meio da execução: termina o item atual e para."""
+        status.set(f"Licença: {motivo}")
+        log.adicionar(f"[erro] Licença recusada pelo Giro: {motivo}")
+        log.adicionar("Parando com segurança ao terminar o item atual.")
+        pedir_parada()
+        # se não sair sozinho (item demorado), encerra em 2 minutos
+        root.after(120_000, lambda: parar() if processo is not None
+                   and processo.poll() is None else None)
+
+    vigia = licenca.Vigia(root, licenca_recusada)
+
     def terminou():
         global processo
         processo = None
+        vigia.parar()
         barra.definir_estado("parado")
         log.ao_vivo(False)
         if rodada["execucao"] is not None:
@@ -613,7 +628,16 @@ def montar(pai, app):
         with open(CAMINHO_PARAMS, "w", encoding="utf-8") as f:
             json.dump(params, f, ensure_ascii=False, indent=2)
 
-        limpar_sinal()           # descarta sinal antigo pra não 'prosseguir' sozinho
+        # licença conferida a CADA execução: plano e pagamento podem
+        # ter mudado desde que a janela abriu
+        try:
+            dados_licenca = licenca.consultar()
+        except (licenca.Bloqueado, licenca.SemResposta) as exc:
+            status.set(f"Licença: {exc}")
+            return
+
+        limpar_sinal()
+        limpar_parada()           # descarta sinal antigo pra não 'prosseguir' sozinho
         log.limpar()
 
         processo = subprocess.Popen(
@@ -622,6 +646,7 @@ def montar(pai, app):
             text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
+        vigia.iniciar(dados_licenca.get("verificar_a_cada_minutos"))
         rodada.update(parada=False, execucao=execucoes.nova(
             "Compra", [CARTOES_SITES[s][0] for s in params["sites"]],
             produtos, params["dry_run"]))
@@ -646,6 +671,7 @@ def montar(pai, app):
         if processo is not None and processo.poll() is None:
             processo.terminate()
             processo = None
+            vigia.parar()
             rodada["parada"] = True
             status.set("Bot parado.")
         else:
@@ -801,7 +827,9 @@ def montar(pai, app):
     ])
 
     drenar_log()
-    return Pagina(frame, guia.iniciar_se_primeira_vez, encerrar, guia)
+    pagina = Pagina(frame, guia.iniciar_se_primeira_vez, encerrar, guia)
+    pagina.vigia = vigia        # quem confere a licença durante a execução
+    return pagina
 
 
 def iniciar():

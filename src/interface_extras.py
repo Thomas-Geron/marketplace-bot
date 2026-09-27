@@ -17,6 +17,7 @@ from tkinter import ttk
 from urllib.parse import urlparse
 
 import execucoes
+import licenca
 import tutorial
 import ui_animacao
 import ui_tema
@@ -267,16 +268,59 @@ class PaginaConfig(_Pagina):
         self.lbl_guia = ttk.Label(guia.corpo, text="", style="Ajuda.TLabel")
         self.lbl_guia.pack(anchor="w", pady=(px(8), 0))
 
+        lic = Cartao(self.conteudo, "Licença", subtitulo=(
+            "O bot confere no Giro se a sua loja tem um plano que inclui o "
+            "MarketplaceBot e se o pagamento está em dia. O token é o mesmo "
+            "do Giro Bot: gere no site, em Bot > \"Token dos bots\"."))
+        lic.grid(row=3, column=0, sticky="we", pady=(0, px(20)))
+        corpo_l = lic.corpo
+        corpo_l.columnconfigure(0, weight=1)
+        self.var_token = tk.StringVar(value=licenca.token())
+        self.ent_token = ttk.Entry(corpo_l, textvariable=self.var_token, show="•")
+        self.ent_token.grid(row=0, column=0, sticky="we")
+        self.var_mostrar = tk.IntVar(value=0)
+        ttk.Checkbutton(corpo_l, text="Mostrar", variable=self.var_mostrar,
+                        command=lambda: self.ent_token.configure(
+                            show="" if self.var_mostrar.get() else "•")).grid(
+            row=0, column=1, padx=(px(8), 0))
+        ttk.Button(corpo_l, text="Salvar e conferir", style="Secundario.TButton",
+                   cursor="hand2", command=self._conferir_licenca).grid(
+            row=0, column=2, padx=(px(8), 0))
+        self.lbl_licenca = ttk.Label(corpo_l, text="", style="Ajuda.TLabel")
+        self.lbl_licenca.grid(row=1, column=0, columnspan=3, sticky="w",
+                              pady=(px(8), 0))
+        ttk.Button(corpo_l, text="Abrir Meu plano", style="Secundario.TButton",
+                   cursor="hand2",
+                   command=lambda: webbrowser.open(licenca.PAGINA_PLANO)).grid(
+            row=2, column=0, sticky="w", pady=(px(10), 0))
+
         dados = Cartao(self.conteudo, "Seus dados", subtitulo=(
             "Parâmetros, histórico de contatos e de execuções, anúncios "
             "publicados, sessão da conta e perfis do navegador ficam nesta "
             "pasta. Atualizar ou desinstalar o programa não mexe nela."))
-        dados.grid(row=3, column=0, sticky="we")
+        dados.grid(row=4, column=0, sticky="we")
         ttk.Label(dados.corpo, text=str(get_data_dir()), style="Texto.TLabel").pack(
             anchor="w", pady=(0, px(10)))
         ttk.Button(dados.corpo, text="Abrir a pasta", style="Secundario.TButton",
                    cursor="hand2",
                    command=lambda: os.startfile(get_data_dir())).pack(anchor="w")
+
+    def _conferir_licenca(self):
+        licenca.salvar_token(self.var_token.get())
+        self.lbl_licenca.configure(text="Conferindo no Giro…",
+                                   foreground=C["texto_suave"])
+        self.lbl_licenca.update_idletasks()
+        try:
+            dados = licenca.consultar()
+        except (licenca.Bloqueado, licenca.SemResposta) as exc:
+            self.lbl_licenca.configure(text=str(exc), foreground=C["erro_texto"])
+            return
+        situacao = ("pagamento vencido — regularize" if licenca.atrasada(dados)
+                    else "pagamento em dia")
+        self.lbl_licenca.configure(
+            text=f"Liberado para {dados.get('loja') or 'sua loja'} — plano "
+                 f"{dados.get('plano') or '—'}, {situacao}.",
+            foreground=C["sucesso_texto"])
 
     def _animacoes(self):
         ui_animacao.ATIVO = bool(self.var_anim.get())

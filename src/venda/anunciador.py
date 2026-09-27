@@ -17,7 +17,7 @@ from playwright.sync_api import sync_playwright
 
 from navegador import abrir_navegador
 from paths import get_parametros_venda_path
-from sinal import esperar_prosseguir
+from sinal import esperar_prosseguir, parada_pedida
 import contato
 from venda import anunciados
 from venda.sites import obter_site
@@ -120,6 +120,11 @@ def _executar():
             print(f"\n=== {site.nome} ===")
 
             for v in veiculos:
+                # parada pedida pela interface (ex.: licença recusada):
+                # sai entre um veículo e outro, sem deixar anúncio pela metade
+                if parada_pedida():
+                    print("[parado] pedido de parada da interface.")
+                    return
                 total += 1
                 if anunciados.foi_anunciado(v["id"], site_id):
                     pulados += 1
@@ -191,6 +196,11 @@ def _excluir(veiculos, sites_ids):
             print("")
             print(f"=== {site.nome} ===")
             for v in veiculos:
+                # parada pedida pela interface (ex.: licença recusada):
+                # sai entre um veículo e outro, sem deixar anúncio pela metade
+                if parada_pedida():
+                    print("[parado] pedido de parada da interface.")
+                    return
                 try:
                     print(f"Excluindo: {v['titulo']}...")
                     if site.excluir_anuncio(aba, v):

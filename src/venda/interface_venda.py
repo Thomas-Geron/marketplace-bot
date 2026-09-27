@@ -35,7 +35,9 @@ import execucoes
 import tutorial
 import ui_tema
 from paths import get_parametros_venda_path, get_venda_command
-from sinal import dar_sinal, limpar_sinal
+import licenca
+from sinal import (dar_sinal, limpar_parada, limpar_sinal,
+                   pedir_parada)
 from ui_componentes import Banner, CabecalhoPagina, Cartao, dica_flutuante, placeholder
 from ui_execucao import BarraAcoes, LogExecucao, pede_prosseguir
 from ui_scroll import criar_area_rolavel
@@ -451,9 +453,22 @@ def montar(pai, app):
                 barra.definir_estado("rodando")
         agendado["log"] = root.after(100, drenar_log)
 
+    def licenca_recusada(motivo):
+        """O Giro recusou no meio da execução: termina o item atual e para."""
+        status.set(f"Licença: {motivo}")
+        log.adicionar(f"[erro] Licença recusada pelo Giro: {motivo}")
+        log.adicionar("Parando com segurança ao terminar o item atual.")
+        pedir_parada()
+        # se não sair sozinho (item demorado), encerra em 2 minutos
+        root.after(120_000, lambda: parar() if processo is not None
+                   and processo.poll() is None else None)
+
+    vigia = licenca.Vigia(root, licenca_recusada)
+
     def terminou():
         global processo
         processo = None
+        vigia.parar()
         barra.definir_estado("parado")
         log.ao_vivo(False)
         preencher_lista()        # atualiza "Já anunciado em"
@@ -507,7 +522,16 @@ def montar(pai, app):
                          for sid, par in campos_login.items()},
         )
 
+        # licença conferida a CADA execução: plano e pagamento podem
+        # ter mudado desde que a janela abriu
+        try:
+            dados_licenca = licenca.consultar()
+        except (licenca.Bloqueado, licenca.SemResposta) as exc:
+            status.set(f"Licença: {exc}")
+            return
+
         limpar_sinal()
+        limpar_parada()
         log.limpar()
         processo = subprocess.Popen(
             get_venda_command(),
@@ -515,6 +539,7 @@ def montar(pai, app):
             text=True, bufsize=1, env=ambiente,
         )
         threading.Thread(target=ler_saida, args=(processo,), daemon=True).start()
+        vigia.iniciar(dados_licenca.get("verificar_a_cada_minutos"))
         rodada.update(parada=False, execucao=execucoes.nova(
             "Exclusão" if acao == "excluir" else "Venda",
             [obter_site(s).nome for s in sites_sel],
@@ -592,6 +617,7 @@ def montar(pai, app):
         if processo is not None and processo.poll() is None:
             processo.terminate()
             processo = None
+            vigia.parar()
             rodada["parada"] = True
             preencher_lista()  # atualiza os marcadores [já em: ...]
             status.set("Anunciador parado.")
@@ -707,7 +733,9 @@ def montar(pai, app):
         lambda ok: apos_login() if ok else mostrar_login())
 
     drenar_log()
-    return Pagina(frame, ao_mostrar, encerrar, guia, sair_da_conta)
+    pagina = Pagina(frame, ao_mostrar, encerrar, guia, sair_da_conta)
+    pagina.vigia = vigia        # quem confere a licença durante a execução
+    return pagina
 
 
 def iniciar():
